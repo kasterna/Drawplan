@@ -5,6 +5,8 @@ A browser-based 2D floor plan drawing tool. No installation, no account, no serv
 ## Live version
 👉 [kasterna.github.io/Drawplan](https://kasterna.github.io/Drawplan)
 
+📖 [Guide — all features explained](https://kasterna.github.io/Drawplan/guide.html)
+
 ## Features
 - Draw walls with snapping, angle lock and chain mode
 - Add doors and windows with live placement dimensions
@@ -22,6 +24,12 @@ A browser-based 2D floor plan drawing tool. No installation, no account, no serv
 Open [the live version](https://kasterna.github.io/Drawplan) in any modern browser — or download `index.html` and open it locally. No dependencies, no build step.
 
 Drawings are saved as `.json` files and can be shared with anyone who has Drawplan open.
+
+## Files
+| File | Description |
+|------|-------------|
+| `index.html` | The application |
+| `guide.html` | User guide |
 
 ## License
 MIT
