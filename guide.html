@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drawplan – Guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0B0D;
+    --surface:#16181C;
+    --surface2:#1E2024;
+    --border:rgba(255,255,255,0.07);
+    --accent:#5EA8A0;
+    --accent-soft:rgba(94,168,160,0.12);
+    --text:#E7EAEE;
+    --text-dim:#8C9099;
+    --text-faint:#4A4F58;
+    --mono:'JetBrains Mono', monospace;
+    --sans:'Space Grotesk', sans-serif;
+    --danger:#E05A5A;
+    --sun:#E0A83D;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ scroll-behavior:smooth; }
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    font-size:15px;
+    line-height:1.7;
+  }
+
+  /* NAV */
+  nav{
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    background:rgba(10,11,13,0.92);
+    backdrop-filter:blur(12px);
+    border-bottom:1px solid var(--border);
+    display:flex; align-items:center; gap:0;
+    padding:0 32px; height:52px;
+  }
+  .nav-brand{
+    font-family:var(--mono); font-size:13px; font-weight:600;
+    color:var(--accent); letter-spacing:0.1em; text-decoration:none;
+    margin-right:32px;
+  }
+  .nav-links{ display:flex; gap:0; }
+  .nav-links a{
+    font-size:12.5px; color:var(--text-dim);
+    text-decoration:none; padding:0 14px; height:52px;
+    display:flex; align-items:center;
+    border-bottom:2px solid transparent;
+    transition:color .15s, border-color .15s;
+  }
+  .nav-links a:hover{ color:var(--text); }
+  .nav-links a.active{ color:var(--accent); border-bottom-color:var(--accent); }
+  .nav-cta{
+    margin-left:auto;
+    background:var(--accent); color:var(--bg);
+    font-family:var(--mono); font-size:12px; font-weight:600;
+    padding:7px 16px; border-radius:6px; text-decoration:none;
+    letter-spacing:0.05em; transition:opacity .15s;
+  }
+  .nav-cta:hover{ opacity:0.85; }
+
+  /* LAYOUT */
+  .layout{ display:flex; min-height:100vh; padding-top:52px; }
+
+  /* SIDEBAR */
+  aside{
+    width:220px; flex-shrink:0;
+    position:sticky; top:52px; height:calc(100vh - 52px);
+    overflow-y:auto; padding:32px 0;
+    border-right:1px solid var(--border);
+  }
+  .sidebar-section{ margin-bottom:24px; }
+  .sidebar-label{
+    font-family:var(--mono); font-size:10px; font-weight:600;
+    color:var(--text-faint); letter-spacing:0.12em;
+    padding:0 20px; margin-bottom:6px; text-transform:uppercase;
+  }
+  .sidebar-link{
+    display:block; padding:6px 20px;
+    font-size:13px; color:var(--text-dim);
+    text-decoration:none; border-left:2px solid transparent;
+    transition:color .12s, border-color .12s;
+  }
+  .sidebar-link:hover{ color:var(--text); border-left-color:var(--border); }
+  .sidebar-link.active{ color:var(--accent); border-left-color:var(--accent); }
+
+  /* MAIN */
+  main{ flex:1; padding:48px 64px; max-width:820px; }
+
+  h1{ font-size:36px; font-weight:600; letter-spacing:-0.02em; margin-bottom:12px; }
+  h1 span{ color:var(--accent); }
+  .lead{ font-size:17px; color:var(--text-dim); margin-bottom:48px; max-width:560px; line-height:1.6; }
+
+  h2{
+    font-size:20px; font-weight:600;
+    margin:56px 0 20px;
+    padding-bottom:10px;
+    border-bottom:1px solid var(--border);
+    scroll-margin-top:72px;
+  }
+  h3{ font-size:14px; font-weight:600; color:var(--accent); letter-spacing:0.06em; text-transform:uppercase; margin:28px 0 10px; }
+  p{ color:var(--text-dim); margin-bottom:14px; }
+  p strong{ color:var(--text); font-weight:500; }
+
+  /* TOOL CARDS */
+  .tool-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin:16px 0 28px; }
+  .tool-card{
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:10px; padding:16px 18px;
+    transition:border-color .15s;
+  }
+  .tool-card:hover{ border-color:rgba(94,168,160,0.3); }
+  .tool-header{ display:flex; align-items:center; gap:10px; margin-bottom:6px; }
+  .tool-key{
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:5px; padding:3px 8px;
+    font-family:var(--mono); font-size:11px; color:var(--accent);
+    flex-shrink:0;
+  }
+  .tool-name{ font-size:13.5px; font-weight:500; }
+  .tool-desc{ font-size:12.5px; color:var(--text-dim); line-height:1.55; }
+
+  /* SHORTCUT TABLE */
+  .shortcuts{ width:100%; border-collapse:collapse; margin:16px 0 28px; }
+  .shortcuts td{ padding:8px 12px; font-size:13px; border-bottom:1px solid var(--border); }
+  .shortcuts td:first-child{ width:40%; }
+  .shortcuts tr:last-child td{ border-bottom:none; }
+  .shortcuts tr:hover td{ background:var(--surface); }
+  kbd{
+    background:var(--surface2); border:1px solid var(--border);
+    border-radius:4px; padding:2px 6px;
+    font-family:var(--mono); font-size:11px; color:var(--text);
+  }
+
+  /* TIP BOX */
+  .tip{
+    background:var(--accent-soft); border:1px solid rgba(94,168,160,0.25);
+    border-radius:8px; padding:14px 18px;
+    margin:16px 0 24px; font-size:13.5px; color:var(--text);
+    display:flex; gap:10px;
+  }
+  .tip-icon{ flex-shrink:0; font-size:15px; margin-top:1px; }
+
+  .warn{
+    background:rgba(224,168,61,0.08); border:1px solid rgba(224,168,61,0.2);
+    border-radius:8px; padding:14px 18px;
+    margin:16px 0 24px; font-size:13.5px; color:var(--text);
+    display:flex; gap:10px;
+  }
+
+  /* SNAP MARKERS */
+  .snap-row{ display:flex; gap:12px; flex-wrap:wrap; margin:12px 0 24px; }
+  .snap-badge{
+    display:flex; align-items:center; gap:8px;
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:10px 14px;
+  }
+  .snap-symbol{ width:18px; text-align:center; font-size:14px; }
+  .snap-info .snap-type{ font-size:12px; font-weight:600; color:var(--text); }
+  .snap-info .snap-sub{ font-size:11.5px; color:var(--text-dim); }
+
+  /* WORKFLOW */
+  .steps{ counter-reset:steps; list-style:none; margin:16px 0 28px; }
+  .steps li{
+    counter-increment:steps;
+    display:flex; gap:14px;
+    padding:12px 0; border-bottom:1px solid var(--border);
+    font-size:13.5px; color:var(--text-dim);
+  }
+  .steps li:last-child{ border-bottom:none; }
+  .steps li::before{
+    content:counter(steps);
+    flex-shrink:0; width:24px; height:24px;
+    background:var(--accent-soft); border:1px solid rgba(94,168,160,0.3);
+    border-radius:50%; display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:11px; color:var(--accent); font-weight:600;
+  }
+  .steps li strong{ color:var(--text); }
+
+  /* TOOLBAR VISUAL */
+  .toolbar-demo{
+    background:var(--surface); border:1px solid var(--border);
+    border-radius:999px; padding:6px 12px;
+    display:inline-flex; align-items:center; gap:4px;
+    margin:12px 0 20px; flex-wrap:wrap;
+  }
+  .tb-btn{
+    background:transparent; border:none;
+    padding:5px 11px; border-radius:999px;
+    font-family:var(--sans); font-size:12px; color:var(--text-dim);
+    cursor:default;
+  }
+  .tb-btn.active{ background:var(--accent-soft); color:var(--accent); font-weight:500; }
+  .tb-sep{ width:1px; height:16px; background:var(--border); margin:0 4px; }
+
+  /* FOOTER */
+  footer{
+    border-top:1px solid var(--border);
+    padding:32px 64px; margin-top:64px;
+    display:flex; justify-content:space-between; align-items:center;
+    font-size:12.5px; color:var(--text-faint);
+  }
+  footer a{ color:var(--accent); text-decoration:none; }
+  footer a:hover{ text-decoration:underline; }
+
+  @media(max-width:768px){
+    aside{ display:none; }
+    main{ padding:32px 24px; }
+    .tool-grid{ grid-template-columns:1fr; }
+    footer{ flex-direction:column; gap:8px; padding:24px; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a class="nav-brand" href="index.html">DRAWPLAN</a>
+  <div class="nav-links">
+    <a href="guide.html" class="active">Guide</a>
+    <a href="index.html">Open app →</a>
+  </div>
+  <a class="nav-cta" href="index.html">Start drawing</a>
+</nav>
+
+<div class="layout">
+  <aside>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Getting started</div>
+      <a class="sidebar-link active" href="#overview">Overview</a>
+      <a class="sidebar-link" href="#interface">Interface</a>
+      <a class="sidebar-link" href="#first-plan">Your first plan</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Tools</div>
+      <a class="sidebar-link" href="#walls">Walls</a>
+      <a class="sidebar-link" href="#openings">Doors &amp; Windows</a>
+      <a class="sidebar-link" href="#rooms">Rooms</a>
+      <a class="sidebar-link" href="#measure">Measure</a>
+      <a class="sidebar-link" href="#gridlines">Grid lines</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Features</div>
+      <a class="sidebar-link" href="#snap">Snap system</a>
+      <a class="sidebar-link" href="#units">Units</a>
+      <a class="sidebar-link" href="#export">Save &amp; export</a>
+      <a class="sidebar-link" href="#shortcuts">Shortcuts</a>
+    </div>
+  </aside>
+
+  <main>
+    <h1>Drawplan <span>Guide</span></h1>
+    <p class="lead">A browser-based 2D floor plan tool. No installation required — open the app and start drawing immediately.</p>
+
+    <!-- OVERVIEW -->
+    <h2 id="overview">Overview</h2>
+    <p>Drawplan lets you sketch floor plans directly in the browser. Draw walls, place doors and windows, label rooms with area and floor type, add dimension lines and architect grid lines, then export to PNG or PDF.</p>
+    <p>All drawings are stored locally as <strong>.json files</strong> that you save to your own computer. Nothing is sent to a server.</p>
+
+    <div class="tip">
+      <span class="tip-icon">💡</span>
+      <span>Press <kbd>Esc</kbd> at any time to cancel the current action and return to the Select tool.</span>
+    </div>
+
+    <!-- INTERFACE -->
+    <h2 id="interface">Interface</h2>
+    <h3>Top toolbar</h3>
+    <p>The main toolbar runs along the bottom of the screen. Left side: tools. Right side: display controls.</p>
+
+    <div class="toolbar-demo">
+      <span class="tb-btn active">↖ Select</span>
+      <span class="tb-btn">Walls</span>
+      <span class="tb-btn">Edit</span>
+      <span class="tb-btn">Delete</span>
+      <span class="tb-btn">Rooms</span>
+      <span class="tb-btn">Opening</span>
+      <span class="tb-btn">Measure</span>
+      <span class="tb-btn">Grid lines</span>
+    </div>
+
+    <h3>View controls (secondary toolbar)</h3>
+    <p>Below the tools: <strong>Drafting / Polish</strong> mode toggle, undo/redo, snap magnet, grid toggle, zoom, unit selector, and theme toggle.</p>
+
+    <h3>Drafting vs Polish mode</h3>
+    <p><strong>Drafting</strong> shows a clean line drawing — ideal for working. <strong>Polish</strong> adds wall fill and gradient — ideal for presentation.</p>
+
+    <h3>Room schedule</h3>
+    <p>When rooms are named, a schedule panel appears on the right showing all room names, areas, and a total.</p>
+
+    <!-- FIRST PLAN -->
+    <h2 id="first-plan">Your first plan</h2>
+    <ol class="steps">
+      <li><strong>Draw the outer walls</strong> — select <strong>Walls</strong>, click to start, drag to set direction, release to finish. Use <strong>Chain</strong> mode to draw continuous segments.</li>
+      <li><strong>Add inner walls</strong> — continue drawing. Walls snap to existing corners and edges automatically.</li>
+      <li><strong>Place doors and windows</strong> — select <strong>Opening</strong>, choose Door or Window, set width in MM, then click on a wall to place.</li>
+      <li><strong>Label rooms</strong> — select <strong>Rooms</strong>, click inside a closed area, type a name, choose a floor type, and confirm with ✓ or Enter.</li>
+      <li><strong>Add dimensions</strong> — select <strong>Measure</strong>, click two points, move the mouse to offset the line, click to place.</li>
+      <li><strong>Export</strong> — use the toolbar icons to save as PNG (▤) or vector PDF at 1:1 scale (⬡).</li>
+    </ol>
+
+    <!-- WALLS -->
+    <h2 id="walls">Walls</h2>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-header"><span class="tool-key">Walls</span><span class="tool-name">Draw walls</span></div>
+        <div class="tool-desc">Click and drag to draw a wall segment. Release to finish. The wall thickness is set in the toolbar (default 100 mm).</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-header"><span class="tool-key">Chain</span><span class="tool-name">Chain mode</span></div>
+        <div class="tool-desc">Click once per segment — no need to hold the mouse. Double-click or press Esc to end the chain.</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-header"><span class="tool-key">Edit</span><span class="tool-name">Edit walls</span></div>
+        <div class="tool-desc">Click a wall to select it. Drag the wall body to move it. Drag the endpoint handles to resize. Type an exact length in the toolbar field.</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-header"><span class="tool-key">Delete</span><span class="tool-name">Delete</span></div>
+        <div class="tool-desc">Click any wall, door, window, dimension line, or grid line to delete it.</div>
+      </div>
+    </div>
+
+    <h3>Angle lock</h3>
+    <p>By default, walls snap to <strong>0° and 90°</strong>. Hold <kbd>Alt</kbd> while drawing to draw at a free angle.</p>
+
+    <h3>Exact length input</h3>
+    <p>While drawing, a length field appears at the midpoint of the wall preview. Type a value in the current unit (e.g. <strong>3200</strong> in MM mode) and press <kbd>Enter</kbd> to set the wall to that exact length.</p>
+
+    <div class="tip">
+      <span class="tip-icon">💡</span>
+      <span>Connected walls update automatically when you move or resize a shared endpoint.</span>
+    </div>
+
+    <!-- OPENINGS -->
+    <h2 id="openings">Doors &amp; Windows</h2>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-header"><span class="tool-key">Door</span><span class="tool-name">Place a door</span></div>
+        <div class="tool-desc">Hover over a wall to see live placement dimensions. Click to place. The swing arc is shown in the plan.</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-header"><span class="tool-key">Window</span><span class="tool-name">Place a window</span></div>
+        <div class="tool-desc">Same as a door, but shown as a double glass line. No swing arc.</div>
+      </div>
+    </div>
+
+    <h3>Editing a door or window</h3>
+    <p>With the <strong>↖ Select</strong> or <strong>Opening</strong> tool active, click any door or window to select it. A panel appears with:</p>
+    <ul style="margin:0 0 16px 20px; color:var(--text-dim); font-size:13.5px; line-height:1.8;">
+      <li><strong>⇄ Flip hinge side</strong> — moves the hinge from left to right</li>
+      <li><strong>⇅ Flip swing direction</strong> — swings the door inward or outward</li>
+      <li><strong>Width field</strong> — type a new width in MM and press Enter</li>
+      <li><strong>× Delete</strong> — removes the opening</li>
+    </ul>
+    <p>To <strong>move</strong> a door or window: click it once to select (yellow outline appears), then click and drag it along the wall.</p>
+
+    <div class="warn">
+      <span class="tip-icon">⚠️</span>
+      <span>Doors and windows cannot be closer than 100 mm to a wall end or junction. If there is not enough space, a message is shown.</span>
+    </div>
+
+    <!-- ROOMS -->
+    <h2 id="rooms">Rooms</h2>
+    <p>Select <strong>Rooms</strong> and click inside any enclosed area. A name field and floor type selector appear.</p>
+    <ul style="margin:0 0 16px 20px; color:var(--text-dim); font-size:13.5px; line-height:1.8;">
+      <li>Type the room name (e.g. <em>Living room</em>)</li>
+      <li>Choose a floor type from the dropdown: Parquet, Laminate, Tiles, Concrete, Vinyl, Carpet, Marble</li>
+      <li>Press <kbd>Enter</kbd> or click <strong>✓</strong> to confirm</li>
+    </ul>
+    <p>The room is filled with a colour matching the floor type, and the name, area, and floor type annotation are shown in the plan. The room schedule on the right updates automatically.</p>
+    <p>Click an existing room label to <strong>rename</strong> it or change its floor type.</p>
+
+    <!-- MEASURE -->
+    <h2 id="measure">Measure</h2>
+    <p>Select <strong>Measure</strong> and:</p>
+    <ol class="steps">
+      <li>Click the <strong>first point</strong> — snaps to wall corners, edges, and faces.</li>
+      <li>Click the <strong>second point</strong> — the line locks to 90° when near-perpendicular.</li>
+      <li>Move the mouse to set the <strong>offset distance</strong> from the wall.</li>
+      <li>Click to <strong>place</strong> the dimension line.</li>
+    </ol>
+    <p>Dimension lines use architect convention: diagonal tick marks at each end, text in the middle. Press <kbd>Esc</kbd> to cancel a measurement in progress. Use the <strong>Delete</strong> tool to remove a placed dimension.</p>
+
+    <div class="tip">
+      <span class="tip-icon">💡</span>
+      <span>Snap markers show which point you are snapping to: a <span style="color:#5EA8A0">■ square</span> for a corner, <span style="color:#E0A83D">▲ triangle</span> for an edge, and <span style="color:#7C93E6">● circle</span> for a face.</span>
+    </div>
+
+    <!-- GRID LINES -->
+    <h2 id="gridlines">Grid lines</h2>
+    <p>Select <strong>Grid lines</strong>, then choose direction in the toolbar:</p>
+    <ul style="margin:0 0 14px 20px; color:var(--text-dim); font-size:13.5px; line-height:1.8;">
+      <li><strong>↕ Vertical</strong> — numbered lines (1, 2, 3…)</li>
+      <li><strong>↔ Horizontal</strong> — lettered lines (A, B, C…)</li>
+    </ul>
+    <p>Click anywhere on the canvas to place a line. Labels appear in circles outside the drawing at both ends. Labels are re-sorted automatically by position when a new line is added or an existing one is moved.</p>
+
+    <h3>Editing grid lines</h3>
+    <ul style="margin:0 0 16px 20px; color:var(--text-dim); font-size:13.5px; line-height:1.8;">
+      <li><strong>Move</strong> — hover over the dashed line (cursor becomes ↔ grab), then drag along the perpendicular axis.</li>
+      <li><strong>Jog (offset label)</strong> — in Grid lines mode, drag a bubble sideways. Both bubbles move together by default; hold <kbd>Alt</kbd> to move only one.</li>
+      <li><strong>Lock</strong> — click the 🔓 icon on a bubble to lock the line. Locked lines cannot be moved or deleted until unlocked.</li>
+      <li><strong>Delete</strong> — switch to the Delete tool and click the line or either bubble.</li>
+    </ul>
+
+    <!-- SNAP -->
+    <h2 id="snap">Snap system</h2>
+    <p>The 🧲 magnet button in the toolbar toggles snapping on or off. When active, three snap types are shown by coloured markers:</p>
+
+    <div class="snap-row">
+      <div class="snap-badge">
+        <div class="snap-symbol" style="color:#5EA8A0">■</div>
+        <div class="snap-info">
+          <div class="snap-type">Corner (vertex)</div>
+          <div class="snap-sub">Wall endpoint or outer corner</div>
+        </div>
+      </div>
+      <div class="snap-badge">
+        <div class="snap-symbol" style="color:#E0A83D">▲</div>
+        <div class="snap-info">
+          <div class="snap-type">Edge</div>
+          <div class="snap-sub">Any point along a wall face</div>
+        </div>
+      </div>
+      <div class="snap-badge">
+        <div class="snap-symbol" style="color:#7C93E6">●</div>
+        <div class="snap-info">
+          <div class="snap-type">Face (surface)</div>
+          <div class="snap-sub">Inside the wall thickness</div>
+        </div>
+      </div>
+    </div>
+
+    <p>Snapping works on <strong>all three lines</strong> of a wall: outer face, centre line, and inner face. This lets you measure or draw from wall face to wall face — not just centre to centre.</p>
+    <p>Hold <kbd>Alt</kbd> while drawing to temporarily override the 90° angle lock and draw at a free angle, without disabling snapping.</p>
+
+    <h3>Tracking lines</h3>
+    <p>While drawing walls, yellow dashed tracking lines appear when the current endpoint is horizontally or vertically aligned with an existing wall corner. A yellow dot marks the reference point.</p>
+
+    <!-- UNITS -->
+    <h2 id="units">Units</h2>
+    <p>The unit selector in the toolbar controls how all lengths are displayed and entered:</p>
+    <table class="shortcuts">
+      <tr><td><kbd>MM</kbd></td><td>Millimetres — default, most precise for construction</td></tr>
+      <tr><td><kbd>CM</kbd></td><td>Centimetres</td></tr>
+      <tr><td><kbd>M</kbd></td><td>Metres</td></tr>
+      <tr><td><kbd>FT/IN</kbd></td><td>Imperial — feet and fractional inches (e.g. 9'-6 1/2")</td></tr>
+    </table>
+    <p>Changing the unit updates all dimension lines, the length input field, and the wall edit field immediately.</p>
+
+    <!-- EXPORT -->
+    <h2 id="export">Save &amp; export</h2>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <div class="tool-header"><span class="tool-key">⭳ Save</span><span class="tool-name">Save as JSON</span></div>
+        <div class="tool-desc">Downloads a <code>.json</code> file with all walls, rooms, openings, dimensions, and grid lines. Share this file with anyone to let them open and continue the drawing.</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-header"><span class="tool-key">⭱ Open</span><span class="tool-name">Open JSON</span></div>
+        <div class="tool-desc">Load a previously saved <code>.json</code> file into the current session.</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-header"><span class="tool-key">▤ PNG</span><span class="tool-name">Export image</span></div>
+        <div class="tool-desc">Exports the full drawing at 2× resolution. Crops to content — the result is always the same regardless of current zoom or pan position.</div>
+      </div>
+      <div class="tool-card">
+        <div class="tool-header"><span class="tool-key">⬡ PDF</span><span class="tool-name">Export vector PDF</span></div>
+        <div class="tool-desc">Exports a true vector PDF at <strong>1:1 scale</strong> — 1 mm in the file equals 1 mm in reality. Ideal for printing or importing into Blender/Bonsai as a reference underlay.</div>
+      </div>
+    </div>
+
+    <div class="warn">
+      <span class="tip-icon">⚠️</span>
+      <span>PDF export requires an internet connection to load the PDF library (jsPDF + svg2pdf.js).</span>
+    </div>
+
+    <!-- SHORTCUTS -->
+    <h2 id="shortcuts">Keyboard shortcuts</h2>
+    <table class="shortcuts">
+      <tr><td><kbd>Esc</kbd></td><td>Cancel current action, return to Select tool</td></tr>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>Z</kbd></td><td>Undo (50 steps)</td></tr>
+      <tr><td><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>Z</kbd></td><td>Redo</td></tr>
+      <tr><td><kbd>Alt</kbd> + drag</td><td>Free-angle drawing (overrides 90° lock)</td></tr>
+      <tr><td><kbd>Alt</kbd> + jog bubble</td><td>Move one grid line bubble independently</td></tr>
+      <tr><td><kbd>Enter</kbd></td><td>Confirm length input / room name</td></tr>
+      <tr><td>Scroll wheel</td><td>Zoom in / out</td></tr>
+      <tr><td>Middle mouse / drag in Select</td><td>Pan the canvas</td></tr>
+    </table>
+
+  </main>
+</div>
+
+<footer>
+  <span>Drawplan — browser-based 2D floor plan tool</span>
+  <span><a href="index.html">Open app</a> · <a href="https://github.com/kasterna/Drawplan">GitHub</a> · MIT license</span>
+</footer>
+
+<script>
+  // Active sidebar link on scroll
+  const sections = document.querySelectorAll('h2[id]');
+  const links = document.querySelectorAll('.sidebar-link');
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if(e.isIntersecting){
+        links.forEach(l => l.classList.remove('active'));
+        const active = document.querySelector(`.sidebar-link[href="#${e.target.id}"]`);
+        if(active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin:'-20% 0px -70% 0px' });
+  sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>
