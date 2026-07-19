@@ -1,0 +1,3641 @@
+<!DOCTYPE html>
+<html lang="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Drawplan</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0A0B0D;
+    --bg-vignette: rgba(0,0,0,0.55);
+    --surface:#16181C;
+    --surface-border: rgba(232,236,240,0.10);
+    --line: rgba(226,230,235,0.40);
+    --line-strong: rgba(232,236,240,0.80);
+    --wall-drafting:#25272C;
+    --wall-polish-a:#3A3E46;
+    --wall-polish-b:#1A1C20;
+    --floor-polish-a: rgba(242,200,121,0.10);
+    --floor-polish-b: rgba(10,11,13,0);
+    --accent:#5EA8A0;
+    --accent-soft: rgba(94,168,160,0.16);
+    --sun:#F2C879;
+    --danger:#E5484D;
+    --danger-soft: rgba(229,72,77,0.16);
+    --text: #E7EAEE;
+    --text-dim: rgba(226,230,235,0.52);
+    --text-faint: rgba(226,230,235,0.30);
+    --overlay-1: rgba(255,255,255,0.03);
+    --overlay-2: rgba(255,255,255,0.045);
+    --overlay-3: rgba(255,255,255,0.06);
+    --mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sans: 'Space Grotesk', -apple-system, sans-serif;
+  }
+
+  body[data-theme="light"]{
+    --bg:#F0F1F3;
+    --bg-vignette: rgba(20,22,26,0.07);
+    --surface:#FFFFFF;
+    --surface-border: rgba(20,22,26,0.10);
+    --line: rgba(20,22,26,0.38);
+    --line-strong: rgba(20,22,26,0.78);
+    --wall-drafting:#D7DADE;
+    --wall-polish-a:#EBEDF0;
+    --wall-polish-b:#C6CBD1;
+    --floor-polish-a: rgba(200,140,40,0.08);
+    --floor-polish-b: rgba(240,241,243,0);
+    --accent:#3D8A82;
+    --accent-soft: rgba(61,138,130,0.14);
+    --sun:#C8973F;
+    --danger:#C93A3F;
+    --danger-soft: rgba(201,58,63,0.12);
+    --text:#1B1D21;
+    --text-dim: rgba(27,29,33,0.58);
+    --text-faint: rgba(27,29,33,0.36);
+    --overlay-1: rgba(20,22,26,0.035);
+    --overlay-2: rgba(20,22,26,0.05);
+    --overlay-3: rgba(20,22,26,0.07);
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  body{
+    margin:0;
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    overflow:hidden;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .app{
+    position:relative;
+    width:100vw;
+    height:100vh;
+  }
+
+  .vignette{
+    position:absolute; inset:0;
+    pointer-events:none;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, var(--bg-vignette) 100%);
+    z-index:5;
+  }
+
+  /* ---------- HUD ---------- */
+  .hud{
+    position:absolute; top:22px; left:26px; z-index:10;
+    pointer-events:none;
+  }
+  .hud-title{
+    font-size:14px; letter-spacing:0.08em;
+    color:var(--text);
+    font-weight:600;
+  }
+  .hud-title .proj{ color:var(--accent); }
+  .hud-title .sep{ color:var(--text-faint); margin:0 6px; font-weight:400; }
+  .hud-title .file{ color:var(--text-dim); font-weight:500; }
+  .hud-sub{
+    margin-top:6px;
+    font-family:var(--mono);
+    font-size:11px;
+    letter-spacing:0.02em;
+    color:var(--text-faint);
+  }
+
+  /* ---------- Compass ---------- */
+  .compass{
+    position:absolute; top:24px; right:28px; z-index:10;
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    font-family:var(--mono); font-size:10px; color:var(--text-dim);
+    pointer-events:none;
+    user-select:none;
+  }
+  .compass svg{ width:22px; height:30px; }
+
+  /* ---------- Scale bar ---------- */
+  .scalebar{
+    position:absolute; bottom:28px; left:26px; z-index:10;
+    display:flex; align-items:center; gap:8px;
+    font-family:var(--mono); font-size:10px; color:var(--text-dim);
+    pointer-events:none;
+  }
+  .scalebar svg{ display:block; }
+
+  /* ---------- Stage ---------- */
+  #stage{
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    display:block;
+    cursor:grab;
+    touch-action:none;
+  }
+  #stage{ cursor:default; }
+  #stage.grabbing{ cursor:grabbing; }
+  #stage.tool-draw{ cursor:crosshair; }
+
+  .selection-ring{ fill:none; stroke:var(--sun); stroke-width:2; vector-effect:non-scaling-stroke; stroke-dasharray:4 3; pointer-events:none; opacity:0.9; }
+  .selected-opening .opening-cut{ stroke:var(--sun); stroke-width:2; vector-effect:non-scaling-stroke; }
+  #stage.tool-erase{ cursor:default; }
+  #stage.tool-edit{ cursor:default; }
+  #stage.tool-space{ cursor:crosshair; }
+  #stage.tool-opening{ cursor:crosshair; }
+  #stage.tool-measure{ cursor:crosshair; }
+
+  #world{
+    opacity:0;
+    transform-origin:0 0;
+  }
+  #world.ready{
+    animation: worldIn .7s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  @keyframes worldIn{
+    from{ opacity:0; }
+    to{ opacity:1; }
+  }
+
+  .wall-preview{ opacity:0.55; pointer-events:none; }
+
+  #wallsPolish{ opacity:0; transition:opacity .65s ease; }
+  #wallsDrafting{ opacity:1; transition:opacity .65s ease; }
+
+  body[data-mode="polish"] #wallsDrafting{ opacity:0; }
+  body[data-mode="polish"] #wallsPolish{ opacity:1; }
+
+  .edit-handle{
+    fill:var(--accent); stroke:var(--bg); stroke-width:2;
+    vector-effect:non-scaling-stroke; cursor:move;
+  }
+  .edit-handle:hover{ fill:var(--text); }
+
+  .snap-marker{ vector-effect:non-scaling-stroke; pointer-events:none; stroke-width:2.4; }
+  .snap-marker-vertex{ fill:var(--accent); fill-opacity:0.22; stroke:var(--accent); }
+  .snap-marker-edge{ fill:#E0A83D; fill-opacity:0.22; stroke:#E0A83D; }
+  .snap-marker-face{ fill:#7C93E6; fill-opacity:0.22; stroke:#7C93E6; }
+
+  .opening-group{ cursor:pointer; }
+  .opening-cut{ fill:var(--bg); transition:fill .15s ease; }
+  .opening-group:hover .opening-cut{ fill:rgba(94,168,160,0.10); }
+  .opening-group.selected .opening-cut{ stroke:var(--accent); stroke-width:1.6; vector-effect:non-scaling-stroke; }
+  .opening-cut-preview{ fill:var(--accent); fill-opacity:0.16; stroke:var(--accent); stroke-width:1; stroke-dasharray:3 3; vector-effect:non-scaling-stroke; pointer-events:none; }
+  .opening-jamb{ stroke:var(--line); stroke-width:1.1; vector-effect:non-scaling-stroke; }
+  .opening-leaf{ stroke:var(--line); stroke-width:1.1; vector-effect:non-scaling-stroke; }
+  .opening-arc{ stroke:var(--text-faint); stroke-width:0.8; vector-effect:non-scaling-stroke; fill:none; }
+  .opening-pane{ stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke; }
+
+  .tracking-line{ stroke:rgba(255,210,80,0.55); stroke-width:0.8; vector-effect:non-scaling-stroke; stroke-dasharray:4 4; pointer-events:none; }
+  .tracking-dot{ fill:rgba(255,210,80,0.7); pointer-events:none; }
+
+  .draw-label{
+    font-family:var(--mono); font-size:11px; fill:var(--accent);
+    pointer-events:none;
+  }
+
+  .space-name{ font-family:var(--sans); font-size:13px; font-weight:500; fill:var(--text); text-anchor:middle; cursor:pointer; }
+  .space-area{ font-family:var(--mono); font-size:10.5px; letter-spacing:0.02em; fill:var(--text-dim); text-anchor:middle; cursor:pointer; }
+  .space-group.invalid .space-area{ fill:var(--danger); }
+  .space-delete{ cursor:pointer; }
+  .space-delete circle{ fill:var(--overlay-2); stroke:var(--surface-border); stroke-width:0.6; vector-effect:non-scaling-stroke; }
+  .space-delete text{ font-family:var(--mono); font-size:9px; fill:var(--text-faint); text-anchor:middle; dominant-baseline:middle; pointer-events:none; }
+  .space-delete:hover circle{ fill:var(--danger-soft); }
+  .space-delete:hover text{ fill:var(--danger); }
+  .space-hint{
+    font-family:var(--mono); font-size:11px; fill:var(--text-dim);
+    text-anchor:middle; opacity:0; pointer-events:none;
+    transition:opacity .25s ease;
+  }
+
+  .space-name-input{
+    position:absolute; z-index:20; display:none;
+    transform:translate(-50%,-50%);
+    background:var(--surface);
+    border:1px solid var(--accent);
+    border-radius:8px;
+    color:var(--text);
+    font-family:var(--sans); font-size:13px;
+    padding:6px 10px;
+    width:140px;
+    text-align:center;
+    box-shadow:0 8px 20px rgba(0,0,0,0.5);
+  }
+  .space-name-input:focus{ outline:none; }
+
+  .floor-type-overlay{
+    position:absolute; z-index:19; display:none;
+    transform:translate(-50%, calc(-50% + 36px));
+    background:var(--surface);
+    border:1px solid var(--surface-border);
+    border-radius:8px;
+    padding:3px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.4);
+    display:none; align-items:center; gap:4px;
+  }
+  .floor-type-select{
+    appearance:none; -webkit-appearance:none;
+    background:transparent; border:none; outline:none;
+    color:var(--text-dim); font-family:var(--sans); font-size:12px;
+    padding:4px 8px; cursor:pointer; width:120px; text-align:center;
+  }
+  .floor-type-select option{ background:var(--surface); color:var(--text); }
+  #btnConfirmSpace{
+    appearance:none; border:none;
+    background:var(--accent); color:var(--bg);
+    border-radius:6px; padding:4px 8px;
+    font-size:12px; cursor:pointer; font-weight:700;
+  }
+  #btnConfirmSpace:hover{ opacity:0.85; }
+
+  /* Gulvfarger — brukes som fill på rombakgrunn */
+  .space-fill-parkett{ fill:rgba(185,140,90,0.13); }
+  .space-fill-laminat{ fill:rgba(200,165,110,0.11); }
+  .space-fill-fliser{ fill:rgba(100,160,190,0.13); }
+  .space-fill-betong{ fill:rgba(140,140,140,0.12); }
+  .space-fill-vinyl{ fill:rgba(160,200,160,0.11); }
+  .space-fill-teppe{ fill:rgba(180,120,160,0.13); }
+  .space-fill-marmor{ fill:rgba(220,210,200,0.15); }
+
+  .space-floor-type{ font-family:var(--mono); font-size:9px; fill:var(--text-faint); text-anchor:middle; letter-spacing:0.05em; }
+
+  .draw-length-overlay{
+    position:absolute; z-index:20; display:none;
+    transform:translate(-50%,-50%);
+    align-items:center; gap:5px;
+    background:var(--surface);
+    border:1px solid var(--accent);
+    border-radius:8px;
+    padding:4px 8px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.5);
+  }
+  .draw-length-overlay input{
+    width:56px;
+    background:transparent; border:none; outline:none;
+    color:var(--accent);
+    font-family:var(--mono); font-size:12.5px;
+    text-align:right;
+  }
+  .draw-length-overlay span{
+    font-family:var(--mono); font-size:11px; color:var(--text-faint);
+  }
+
+  .opening-edit-overlay{
+    position:absolute; z-index:20; display:none;
+    transform:translate(-50%,-50%);
+    align-items:center; gap:2px;
+    background:var(--surface);
+    border:1px solid var(--accent);
+    border-radius:999px;
+    padding:4px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.5);
+  }
+  .opening-edit-overlay .icon-btn{ width:28px; height:28px; font-size:14px; }
+  .opening-edit-overlay .divider{ height:16px; }
+  .opening-edit-overlay input[type="number"]{
+    width:52px; background:rgba(255,255,255,0.04);
+    border:1px solid var(--surface-border); border-radius:6px;
+    color:var(--text); font-family:var(--mono); font-size:11.5px;
+    padding:4px 5px; text-align:right;
+  }
+  .opening-edit-overlay input[type="number"]:focus{ outline:none; border-color:var(--accent); }
+  #btnDeleteOpening:hover{ background:var(--danger-soft); color:var(--danger); }
+
+  .measure-ext{ stroke:var(--text-faint); stroke-width:0.7; vector-effect:non-scaling-stroke; }
+
+  .gl-line{ stroke:var(--accent); stroke-width:1; vector-effect:non-scaling-stroke; stroke-dasharray:8 4; opacity:0.8; }
+  .gl-line.gl-selected{ stroke:var(--sun); stroke-dasharray:none; opacity:1; }
+  .gl-line.gl-locked{ stroke-dasharray:none; opacity:0.45; }
+  .gl-bubble circle{ fill:var(--surface); stroke:var(--accent); }
+  .gl-bubble text{ fill:var(--accent); }
+  .gl-bubble.gl-selected circle{ fill:var(--surface); stroke:var(--sun); }
+  .gl-bubble.gl-selected text{ fill:var(--sun); }
+  .gl-bubble.gl-locked circle{ stroke:var(--text-faint); }
+  .gl-bubble.gl-locked text{ fill:var(--text-faint); }
+  .gl-bubble:hover circle{ fill:var(--accent-soft); }
+  .gl-lock{ cursor:pointer; }
+  .gl-lock rect{ fill:var(--surface); stroke:var(--text-faint); vector-effect:non-scaling-stroke; }
+  .gl-lock text{ fill:var(--text-faint); }
+  .gl-lock.locked rect{ fill:var(--accent-soft); stroke:var(--accent); }
+  .gl-lock.locked text{ fill:var(--accent); }
+  .gl-kink{ fill:none; stroke:var(--accent); vector-effect:non-scaling-stroke; }
+  #stage.tool-gridline{ cursor:crosshair; }
+  .measure-line{ stroke:var(--text-dim); stroke-width:0.9; vector-effect:non-scaling-stroke; }
+  .measure-tick{ stroke:var(--text-dim); stroke-width:1.1; vector-effect:non-scaling-stroke; }
+  .measure-text{ font-family:var(--mono); font-size:11px; fill:var(--text-dim); text-anchor:middle; }
+  .measure-group{ cursor:default; }
+  #stage.tool-erase .measure-group{ cursor:pointer; }
+  #stage.tool-erase .measure-group:hover .measure-line{ stroke:var(--danger); }
+  #stage.tool-erase .measure-group:hover .measure-text{ fill:var(--danger); }
+
+  .grid-line-fine  { stroke:rgba(128,128,128,0.10); vector-effect:non-scaling-stroke; stroke-width:1; }
+  .grid-line-coarse{ stroke:rgba(128,128,128,0.22); vector-effect:non-scaling-stroke; stroke-width:1; }
+  .grid-axis-x    { stroke:rgba(100,130,255,0.45); vector-effect:non-scaling-stroke; stroke-width:1.5; }
+  .grid-axis-y    { stroke:rgba(255,100,100,0.45); vector-effect:non-scaling-stroke; stroke-width:1.5; }
+  body[data-theme="light"] .grid-line-fine  { stroke:rgba(80,80,80,0.09); }
+  body[data-theme="light"] .grid-line-coarse{ stroke:rgba(80,80,80,0.20); }
+  body[data-theme="light"] .grid-axis-x    { stroke:rgba(60,80,220,0.38); }
+  body[data-theme="light"] .grid-axis-y    { stroke:rgba(210,50,50,0.38); }
+
+  /* ---------- Romskjema ---------- */
+  .room-schedule{
+    position:absolute; top:70px; right:26px; bottom:110px; z-index:10;
+    width:220px;
+    background:var(--surface);
+    border:1px solid var(--surface-border);
+    border-radius:14px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.2);
+    backdrop-filter: blur(8px);
+    display:flex; flex-direction:column;
+    overflow:hidden;
+    opacity:0; pointer-events:none;
+    transition:opacity .3s ease;
+  }
+  .room-schedule.visible{ opacity:1; pointer-events:auto; }
+
+  .room-schedule-header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:12px 14px 10px;
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em;
+    color:var(--text-faint);
+    border-bottom:1px solid var(--surface-border);
+    flex-shrink:0;
+  }
+  .room-schedule-count{
+    background:var(--overlay-3); border-radius:999px;
+    padding:1px 7px; color:var(--text-dim);
+  }
+
+  .room-schedule-list{
+    overflow-y:auto;
+    flex:1;
+  }
+  .room-schedule-row{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 14px;
+    cursor:pointer;
+    border-bottom:1px solid var(--overlay-2);
+    transition:background .15s ease;
+  }
+  .room-schedule-row:last-child{ border-bottom:none; }
+  .room-schedule-row:hover{ background:var(--overlay-2); }
+  .room-schedule-row-name{
+    font-family:var(--sans); font-size:12.5px; color:var(--text);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    flex:1; margin-right:8px;
+  }
+  .room-schedule-row-area{
+    font-family:var(--mono); font-size:11.5px; color:var(--text-dim);
+    white-space:nowrap;
+  }
+  .room-schedule-row-area.invalid{ color:var(--danger); }
+  .room-schedule-row-del{
+    width:18px; height:18px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    color:var(--text-faint); font-family:var(--mono); font-size:11px;
+    margin-left:6px;
+    opacity:0; transition:opacity .15s ease, background .15s ease, color .15s ease;
+  }
+  .room-schedule-row:hover .room-schedule-row-del{ opacity:1; }
+  .room-schedule-row-del:hover{ background:var(--danger-soft); color:var(--danger); }
+
+  .room-schedule-total{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:11px 14px;
+    border-top:1px solid var(--surface-border);
+    font-family:var(--mono); font-size:11.5px;
+    color:var(--text);
+    background:var(--overlay-1);
+    flex-shrink:0;
+  }
+  .room-schedule-total span:first-child{ color:var(--text-faint); letter-spacing:0.06em; }
+
+  @media (max-width: 720px){
+    .room-schedule{ display:none; }
+  }
+
+  /* ---------- Toolbars ---------- */
+  .toolbar{
+    position:absolute; left:50%; transform:translateX(-50%);
+    z-index:10;
+    display:flex; align-items:center; gap:2px;
+    background:var(--surface);
+    border:1px solid var(--surface-border);
+    border-radius:999px;
+    padding:5px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.45), 0 0 0 1px rgba(0,0,0,0.2);
+    backdrop-filter: blur(8px);
+  }
+  .toolbar.primary{ bottom:26px; }
+  .toolbar.tools{ bottom:78px; }
+
+  .mode-group{
+    display:flex; background:var(--overlay-1); border-radius:999px; padding:3px;
+  }
+  .mode-btn{
+    appearance:none; border:none; background:transparent;
+    color:var(--text-dim); font-family:var(--sans); font-size:12.5px; font-weight:500;
+    padding:7px 16px; border-radius:999px; cursor:pointer;
+    transition: background .3s ease, color .3s ease;
+    white-space:nowrap;
+  }
+  .mode-btn.active{
+    background:var(--accent-soft); color:var(--text);
+  }
+  .mode-btn.active.danger{ background:var(--danger-soft); }
+  .mode-btn:hover:not(.active){ color:var(--text); }
+
+  .divider{ width:1px; height:20px; background:var(--surface-border); margin:0 6px; }
+
+  .icon-btn{
+    appearance:none; border:none; background:transparent;
+    color:var(--text-dim); width:32px; height:32px; border-radius:50%;
+    display:flex; align-items:center; justify-content:center;
+    cursor:pointer; font-family:var(--mono); font-size:15px;
+    transition: background .2s ease, color .2s ease;
+  }
+  .icon-btn:hover{ background:var(--overlay-3); color:var(--text); }
+  .icon-btn.active{ background:var(--accent-soft); color:var(--accent); }
+
+  .unit-select{
+    appearance:none; -webkit-appearance:none;
+    background:var(--overlay-1);
+    border:1px solid var(--surface-border);
+    border-radius:8px;
+    color:var(--text-dim);
+    font-family:var(--mono); font-size:11px; letter-spacing:0.03em;
+    padding:6px 9px;
+    cursor:pointer;
+  }
+  .unit-select:hover{ color:var(--text); background:var(--overlay-2); }
+  .unit-select:focus{ outline:none; border-color:var(--accent); }
+  .unit-select option{ background:var(--surface); color:var(--text); }
+
+  .icon-btn.active:hover{ background:var(--accent-soft); }
+
+  .mode-group.small{ padding:2px; }
+  .mode-group.small .mode-btn{ padding:5px 11px; font-size:11.5px; }
+  #chainToggle{ padding:6px 12px; font-size:11.5px; }
+
+  .thickness-control, .opening-control{
+    display:none; align-items:center; gap:9px;
+    padding:0 12px 0 4px;
+  }
+  .thickness-control input[type="number"], .opening-control input[type="number"]{
+    width:56px;
+    background:var(--overlay-2);
+    border:1px solid var(--surface-border);
+    border-radius:8px;
+    color:var(--text);
+    font-family:var(--mono); font-size:12px;
+    padding:6px 6px;
+    text-align:right;
+  }
+  .thickness-control input[type="number"]:focus, .opening-control input[type="number"]:focus{
+    outline:none;
+    border-color:var(--accent);
+    background:var(--overlay-3);
+  }
+  .thickness-control .thickness-unit{
+    font-family:var(--mono); font-size:11px; color:var(--text-faint);
+  }
+
+  button:focus-visible, .icon-btn:focus-visible, .mode-btn:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:2px;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    #world.ready{ animation:none; opacity:1; }
+    #wallsPolish, #wallsDrafting, .mode-btn{ transition:none; }
+  }
+
+  @media (max-width: 560px){
+    .hud-sub{ display:none; }
+    .compass{ display:none; }
+    .toolbar.tools{ bottom:74px; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@3/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2/dist/svg2pdf.umd.min.js"></script>
+</head>
+<body data-mode="drafting" data-theme="dark">
+<div class="app">
+
+  <div class="hud">
+    <div class="hud-title"><span class="proj">DRAWPLAN</span><span class="sep">/</span><span class="file">drawplan</span></div>
+    <div class="hud-sub">DRA VEGGER FOR Å FLYTTE ELLER ENDRE LENGDE</div>
+  </div>
+
+  <div class="compass" aria-hidden="true">
+    <svg viewBox="0 0 22 30">
+      <line x1="11" y1="28" x2="11" y2="4" stroke="var(--line)" stroke-width="1"/>
+      <path d="M11 2 L15 10 L11 7.5 L7 10 Z" fill="var(--text-dim)"/>
+    </svg>
+    <span>N</span>
+  </div>
+
+  <div class="scalebar" aria-hidden="true">
+    <svg width="70" height="10" viewBox="0 0 70 10">
+      <line x1="0" y1="5" x2="70" y2="5" stroke="var(--text-faint)" stroke-width="1"/>
+      <line x1="0" y1="1" x2="0" y2="9" stroke="var(--text-faint)" stroke-width="1"/>
+      <line x1="70" y1="1" x2="70" y2="9" stroke="var(--text-faint)" stroke-width="1"/>
+    </svg>
+    <span>1 M</span>
+  </div>
+
+  <div class="room-schedule" id="roomSchedule">
+    <div class="room-schedule-header">
+      <span>ROMSKJEMA</span>
+      <span class="room-schedule-count" id="roomScheduleCount">0</span>
+    </div>
+    <div class="room-schedule-list" id="roomScheduleList"></div>
+    <div class="room-schedule-total">
+      <span>TOTALT</span>
+      <span id="roomScheduleTotal">0,0 M²</span>
+    </div>
+  </div>
+
+  <svg id="stage" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet">
+    <defs>
+      <pattern id="dotgrid" width="26" height="26" patternUnits="userSpaceOnUse">
+        <circle cx="1" cy="1" r="1" class="grid-dot"></circle>
+      </pattern>
+      <linearGradient id="wallGrad" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0%" stop-color="var(--wall-polish-a)"/>
+        <stop offset="100%" stop-color="var(--wall-polish-b)"/>
+      </linearGradient>
+      <radialGradient id="sunGrad" cx="30%" cy="28%" r="75%">
+        <stop offset="0%" stop-color="var(--sun)" stop-opacity="0.55"/>
+        <stop offset="55%" stop-color="var(--sun)" stop-opacity="0.12"/>
+        <stop offset="100%" stop-color="var(--sun)" stop-opacity="0"/>
+      </radialGradient>
+      <radialGradient id="floorGrad" cx="30%" cy="28%" r="90%">
+        <stop offset="0%" stop-color="var(--floor-polish-a)"/>
+        <stop offset="100%" stop-color="var(--floor-polish-b)"/>
+      </radialGradient>
+      <filter id="wallShadow" x="-40%" y="-40%" width="180%" height="180%">
+        <feDropShadow dx="3" dy="6" stdDeviation="7" flood-color="#000000" flood-opacity="0.45"/>
+      </filter>
+    </defs>
+
+    <rect width="1000" height="700" fill="var(--bg)"/>
+
+    <g id="world"></g>
+  </svg>
+
+  <div class="toolbar tools">
+    <div class="mode-group">
+      <button class="mode-btn active" id="toolPan" aria-pressed="true" title="Velg/panorér (V)">↖ Velg</button>
+      <button class="mode-btn" id="toolDraw" aria-pressed="false">Vegger</button>
+      <button class="mode-btn" id="toolEdit" aria-pressed="false">Rediger</button>
+      <button class="mode-btn" id="toolErase" aria-pressed="false">Slett</button>
+      <button class="mode-btn" id="toolSpace" aria-pressed="false">Rom</button>
+      <button class="mode-btn" id="toolOpening" aria-pressed="false">Åpning</button>
+      <button class="mode-btn" id="toolMeasure" aria-pressed="false">Mål</button>
+      <button class="mode-btn" id="toolGridLine" aria-pressed="false">Gridlinjer</button>
+    </div>
+    <div class="thickness-control" id="thicknessControl">
+      <div class="divider"></div>
+      <button class="mode-btn" id="chainToggle" style="display:none;">Kjede</button>
+      <div class="divider" id="chainDivider" style="display:none;"></div>
+      <input type="number" id="thicknessInput" min="20" max="500" step="5" value="100" inputmode="numeric">
+      <span class="thickness-unit">MM</span>
+      <div class="divider" id="lengthDivider" style="display:none;"></div>
+      <input type="number" id="lengthInput" min="15" max="20000" step="10" inputmode="numeric" style="display:none;">
+      <span class="thickness-unit" id="lengthUnit" style="display:none;">MM</span>
+    </div>
+    <div class="thickness-control" id="openingControl">
+      <div class="divider"></div>
+      <div class="mode-group small">
+        <button class="mode-btn active" id="openingTypeDoor">Dør</button>
+        <button class="mode-btn" id="openingTypeWindow">Vindu</button>
+      </div>
+      <input type="number" id="openingWidthInput" min="400" max="3000" step="50" value="900" inputmode="numeric">
+      <span class="thickness-unit">MM</span>
+    </div>
+    <div class="thickness-control" id="gridLineControl">
+      <div class="divider"></div>
+      <div class="mode-group small">
+        <button class="mode-btn active" id="glAxisVertical" title="Vertikal linje (tall: 1, 2, 3…)">↕ Vertikal</button>
+        <button class="mode-btn" id="glAxisHorizontal" title="Horisontal linje (bokstav: A, B, C…)">↔ Horisontal</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toolbar primary">
+    <div class="mode-group">
+      <button class="mode-btn active" id="btnDrafting" aria-pressed="true">Drafting</button>
+      <button class="mode-btn" id="btnPolish" aria-pressed="false">Polish</button>
+    </div>
+    <div class="divider"></div>
+    <button class="icon-btn" id="btnUndo" title="Angre (Ctrl+Z)" aria-label="Angre">↶</button>
+    <button class="icon-btn" id="btnRedo" title="Gjør om (Ctrl+Shift+Z)" aria-label="Gjør om">↷</button>
+    <div class="divider"></div>
+    <button class="icon-btn active" id="btnSnap" title="Snap av/på" aria-label="Snap av/på">🧲</button>
+    <button class="icon-btn active" id="btnGrid" title="Rutenett av/på" aria-label="Rutenett av/på">#</button>
+    <div class="divider"></div>
+    <button class="icon-btn" id="zoomOut" title="Zoom ut" aria-label="Zoom ut">−</button>
+    <button class="icon-btn" id="zoomReset" title="Tilbakestill visning" aria-label="Tilbakestill visning">⤢</button>
+    <button class="icon-btn" id="zoomIn" title="Zoom inn" aria-label="Zoom inn">+</button>
+    <div class="divider"></div>
+    <button class="icon-btn" id="btnSave" title="Lagre som fil" aria-label="Lagre">⭳</button>
+    <button class="icon-btn" id="btnLoad" title="Åpne fil" aria-label="Åpne">⭱</button>
+    <button class="icon-btn" id="btnExport" title="Last ned som bilde (PNG)" aria-label="Last ned som bilde">▤</button>
+    <button class="icon-btn" id="btnExportPDF" title="Last ned som vektor-PDF (1:1 skala)" aria-label="Last ned som vektor-PDF">⬡</button>
+    <div class="divider"></div>
+    <select id="unitSelect" class="unit-select" title="Måleenhet" aria-label="Måleenhet">
+      <option value="mm" selected>MM</option>
+      <option value="cm">CM</option>
+      <option value="m">M</option>
+      <option value="imperial">FT/IN</option>
+    </select>
+    <div class="divider"></div>
+    <button class="icon-btn" id="btnTheme" title="Bytt mørk/lys modus" aria-label="Bytt mørk/lys modus">☾</button>
+  </div>
+  <input type="file" id="fileInput" accept="application/json" style="display:none">
+
+  <div class="vignette"></div>
+
+  <input type="text" id="spaceNameInput" class="space-name-input" autocomplete="off" spellcheck="false" placeholder="Navn på rom">
+
+  <div class="floor-type-overlay" id="floorTypeOverlay">
+    <select id="floorTypeSelect" class="floor-type-select">
+      <option value="">– ingen gulvtype –</option>
+      <option value="Parkett">Parkett</option>
+      <option value="Laminat">Laminat</option>
+      <option value="Fliser">Fliser</option>
+      <option value="Betong">Betong</option>
+      <option value="Vinyl">Vinyl</option>
+      <option value="Teppe">Teppe</option>
+      <option value="Marmor">Marmor</option>
+    </select>
+    <button id="btnConfirmSpace" title="Bekreft (Enter)">✓</button>
+  </div>
+
+  <div class="opening-edit-overlay" id="openingEditOverlay">
+    <button class="icon-btn" id="btnHingeSide" title="Bytt hengselside (venstre/høyre)" aria-label="Bytt hengselside">⇄</button>
+    <button class="icon-btn" id="btnSwingSide" title="Bytt svingretning (inn/ut)" aria-label="Bytt svingretning">⇅</button>
+    <div class="divider"></div>
+    <input type="number" id="openingWidthEdit" min="200" max="5000" step="50" inputmode="numeric" title="Bredde i MM">
+    <span style="font-family:var(--mono);font-size:11px;color:var(--text-faint)">MM</span>
+    <div class="divider"></div>
+    <button class="icon-btn" id="btnDeleteOpening" title="Slett" aria-label="Slett">×</button>
+  </div>
+
+  <div class="draw-length-overlay" id="drawLengthOverlay">
+    <input type="text" id="drawLengthInput" inputmode="decimal" autocomplete="off" spellcheck="false">
+    <span id="drawLengthUnitLabel">M</span>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Geometri: 4,0 × 3,0 m rom, 200mm vegger ----------
+  const M = 130;              // px per meter (viewBox-enheter) ved k=1
+  const roomW = 4.0, roomH = 3.0;
+  const t = 0.2;               // veggtykkelse i meter (ytterveggene)
+  const outerW = (roomW + t) * M;
+  const outerH = (roomH + t) * M;
+  const tp = t * M;
+
+  const vb = { w: 1000, h: 700 };
+  const originX = vb.w/2 - outerW/2;
+  const originY = vb.h/2 - outerH/2;
+
+  // Gjør veggradienten global (samme lysretning for alle vegger), ikke per form,
+  // ellers får hver vegg sin egen gradient og skjøtene syns som fargesprang i Polish.
+  const wallGradEl = document.getElementById("wallGrad");
+  wallGradEl.setAttribute("gradientUnits", "userSpaceOnUse");
+  wallGradEl.setAttribute("x1", originX);
+  wallGradEl.setAttribute("y1", originY);
+  wallGradEl.setAttribute("x2", originX + outerW);
+  wallGradEl.setAttribute("y2", originY + outerH);
+
+  const svgns = "http://www.w3.org/2000/svg";
+  function el(tag, attrs){
+    const e = document.createElementNS(svgns, tag);
+    for(const k in attrs) e.setAttribute(k, attrs[k]);
+    return e;
+  }
+
+  const world = document.getElementById("world");
+
+  // Disse må deklareres tidlig — brukes av renderGrid() som kalles av updateTransform()
+  // som igjen kalles allerede på linje ~726, lenge før resten av koden kjøres.
+  let gridEnabled = true;
+  let snapEnabled = true;
+  let archGridLines = [];
+  let archGridIdCounter = 1;
+  let selectedGridLineId = null;
+  const ALPHA = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+
+  // Rutenett — tegnes FØR vegger, slik at alt geometri er oppå det
+  const gridLayer = el("g", { id:"gridLayer" });
+  world.appendChild(gridLayer);
+
+  // Walls — drafting (to lag: strøk under, fyll over -> skjøter smelter sammen)
+  const gDraft = el("g", { id:"wallsDrafting" });
+  const draftStrokes = el("g", { id:"draftStrokes" });
+  const draftFills = el("g", { id:"draftFills" });
+  gDraft.appendChild(draftStrokes);
+  gDraft.appendChild(draftFills);
+  world.appendChild(gDraft);
+
+  // Walls — polish (samme to-lags prinsipp)
+  const gPolish = el("g", { id:"wallsPolish", filter:"url(#wallShadow)" });
+  const polishStrokes = el("g", { id:"polishStrokes" });
+  const polishFills = el("g", { id:"polishFills" });
+  gPolish.appendChild(polishStrokes);
+  gPolish.appendChild(polishFills);
+  world.appendChild(gPolish);
+
+  // Lag for dører/vinduer — over veggene, felles for begge moduser
+  const openingsLayer = el("g", { id:"openingsLayer" });
+  world.appendChild(openingsLayer);
+
+  // Lag for målsettingslinjer
+  const measureLayer = el("g", { id:"measureLayer" });
+  world.appendChild(measureLayer);
+
+  // Arkitekt-gridlinjer (A/B/C… og 1/2/3…)
+  const gridLineLayer = el("g", { id:"gridLineLayer" });
+  world.appendChild(gridLineLayer);
+
+  // Midlertidige mål under gridlinje-drag/plassering
+  const gridLineDimLayer = el("g", { id:"gridLineDimLayer" });
+  gridLineDimLayer.style.pointerEvents = "none";
+  world.appendChild(gridLineDimLayer);
+
+  // Lag for midlertidige mål ved plassering av dør/vindu (som i Revit)
+  const openingPreviewLayer = el("g", { id:"openingPreviewLayer" });
+  openingPreviewLayer.style.pointerEvents = "none";
+  world.appendChild(openingPreviewLayer);
+
+  // Lag helt øverst for hover/valgt-kontur (alltid synlig, uavhengig av skjøter)
+  const highlightLayer = el("g", { id:"highlightLayer" });
+  highlightLayer.style.pointerEvents = "none";
+
+  // Lag for målingstekst under tegning/redigering
+  const drawLabel = el("text", { class:"draw-label", "text-anchor":"middle", opacity:"0" });
+  world.appendChild(drawLabel);
+
+  // Lag for rom (spaces): navn + m²
+  const spaceLayer = el("g", { id:"spaceLayer" });
+  world.appendChild(spaceLayer);
+
+  // Kort tilbakemelding, f.eks. "Klikk inni et lukket rom"
+  const spaceHint = el("text", { class:"space-hint", "text-anchor":"middle" });
+  spaceHint.style.pointerEvents = "none";
+  world.appendChild(spaceHint);
+
+  world.appendChild(highlightLayer);
+
+  // Lag for dra-håndtak (endepunkter) på valgt vegg, alltid øverst
+  const editHandles = el("g", { id:"editHandles" });
+  world.appendChild(editHandles);
+
+  // Tracking lines — hjelpelinjer som vises live under tegning
+  const trackingLayer = el("g", { id:"trackingLayer" });
+  trackingLayer.style.pointerEvents = "none";
+  world.appendChild(trackingLayer);
+
+  // Snap-markør (vertex/edge/face), helt øverst av alle
+  const snapMarkerLayer = el("g", { id:"snapMarkerLayer" });
+  snapMarkerLayer.style.pointerEvents = "none";
+  world.appendChild(snapMarkerLayer);
+
+  requestAnimationFrame(()=>{ world.classList.add("ready"); if(typeof renderGrid === "function") renderGrid(); });
+
+  // ---------- Mode toggle (Drafting / Polish) ----------
+  const body = document.body;
+  const btnDrafting = document.getElementById("btnDrafting");
+  const btnPolish = document.getElementById("btnPolish");
+
+  function setMode(mode){
+    body.setAttribute("data-mode", mode);
+    btnDrafting.classList.toggle("active", mode === "drafting");
+    btnPolish.classList.toggle("active", mode === "polish");
+    btnDrafting.setAttribute("aria-pressed", mode === "drafting");
+    btnPolish.setAttribute("aria-pressed", mode === "polish");
+  }
+  btnDrafting.addEventListener("click", () => setMode("drafting"));
+  btnPolish.addEventListener("click", () => setMode("polish"));
+
+  // ---------- Tema (mørk / lys) ----------
+  const btnTheme = document.getElementById("btnTheme");
+  function setTheme(theme){
+    body.setAttribute("data-theme", theme);
+    btnTheme.textContent = theme === "light" ? "☀" : "☾";
+  }
+  btnTheme.addEventListener("click", ()=>{
+    setTheme(body.getAttribute("data-theme") === "light" ? "dark" : "light");
+  });
+
+  // ---------- Pan & zoom ----------
+  const stage = document.getElementById("stage");
+  const view = { x:0, y:0, k:1 };
+  const K_MIN = 0.5, K_MAX = 5;
+
+  // renderGrid MÅ defineres her — den kalles av updateTransform nedenfor
+  const GRID_SIZES_M = [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10, 25, 50, 100];
+  const SUBDIVISIONS = 5;
+  const MIN_SPACING_PX = 14;
+  const MAX_EXTENT_M = 500;
+
+  function renderGrid(){
+    while(gridLayer.firstChild) gridLayer.removeChild(gridLayer.firstChild);
+    if(!gridEnabled) return;
+    // roomMetersToWorldPx / worldPxToRoomMeters er definert etter denne funksjonen,
+    // men kalles kun VED RUN-TIME (ikke ved definisjonstidspunktet), så det er trygt.
+    let coarseIdx = GRID_SIZES_M.length - 1;
+    for(let i = 0; i < GRID_SIZES_M.length; i++){
+      if(GRID_SIZES_M[i] * M * view.k >= MIN_SPACING_PX){ coarseIdx = i; break; }
+    }
+    const coarseM = GRID_SIZES_M[coarseIdx];
+    const fineM = coarseM / SUBDIVISIONS;
+    const showFine = fineM * M * view.k >= MIN_SPACING_PX;
+    const visX0 = ((-view.x/view.k) - originX)/M - 1;
+    const visX1 = (((-view.x + vb.w)/view.k) - originX)/M + 1;
+    const visY0 = ((-view.y/view.k) - originY)/M - 1;
+    const visY1 = (((-view.y + vb.h)/view.k) - originY)/M + 1;
+    function clampedLinePx(isVert, valM, clsName){
+      const px = isVert ? originX + valM*M : originY + valM*M;
+      const x1 = isVert ? px : originX + Math.max(visX0,-MAX_EXTENT_M)*M;
+      const y1 = isVert ? originY + Math.max(visY0,-MAX_EXTENT_M)*M : px;
+      const x2 = isVert ? px : originX + Math.min(visX1,MAX_EXTENT_M)*M;
+      const y2 = isVert ? originY + Math.min(visY1,MAX_EXTENT_M)*M : px;
+      return el("line", { x1, y1, x2, y2, class:clsName });
+    }
+    const useM = showFine ? fineM : coarseM;
+    const startX = Math.ceil(Math.max(visX0,-MAX_EXTENT_M)/useM)*useM;
+    const startY = Math.ceil(Math.max(visY0,-MAX_EXTENT_M)/useM)*useM;
+    const eps = useM*0.001;
+    // Origo = nedre venstre ytterhjørne, beregnet fra faktiske vegger.
+    // Bruker try/catch siden interiorWalls er deklarert med let og kan mangle ved første kall.
+    let axisOriginX = 0, axisOriginY = roomH + t;
+    try {
+      if(interiorWalls && interiorWalls.length > 0){
+        let minX = Infinity, maxY = -Infinity;
+        interiorWalls.forEach(w => {
+          const p1 = roomMetersToWorldPx(w.x1, w.y1);
+          const p2 = roomMetersToWorldPx(w.x2, w.y2);
+          const dx = p2.x-p1.x, dy = p2.y-p1.y;
+          const len = Math.hypot(dx,dy)||0.0001;
+          const ux = dx/len, uy = dy/len;
+          const nx = -uy, ny = ux;
+          const half = w.t*M/2;
+          const a = { x:p1.x-ux*half, y:p1.y-uy*half };
+          const b = { x:p2.x+ux*half, y:p2.y+uy*half };
+          [{x:a.x+nx*half,y:a.y+ny*half},{x:a.x-nx*half,y:a.y-ny*half},
+           {x:b.x+nx*half,y:b.y+ny*half},{x:b.x-nx*half,y:b.y-ny*half}]
+          .forEach(pt => {
+            const m = worldPxToRoomMeters(pt.x, pt.y);
+            if(m.x < minX) minX = m.x;
+            if(m.y > maxY) maxY = m.y;
+          });
+        });
+        if(isFinite(minX)) axisOriginX = minX;
+        if(isFinite(maxY)) axisOriginY = maxY;
+      }
+    } catch(e) { /* interiorWalls ikke klar ennå */ }
+    for(let x = startX; x <= Math.min(visX1,MAX_EXTENT_M)+eps; x += useM){
+      const isCoarse = Math.abs(x%coarseM)<eps || Math.abs(x%coarseM-coarseM)<eps;
+      const isAxis = Math.abs(x - axisOriginX)<eps;
+      gridLayer.appendChild(clampedLinePx(true, x, isAxis?"grid-axis-y":isCoarse?"grid-line-coarse":"grid-line-fine"));
+    }
+    for(let y = startY; y <= Math.min(visY1,MAX_EXTENT_M)+eps; y += useM){
+      const isCoarse = Math.abs(y%coarseM)<eps || Math.abs(y%coarseM-coarseM)<eps;
+      const isAxis = Math.abs(y - axisOriginY)<eps;
+      gridLayer.appendChild(clampedLinePx(false, y, isAxis?"grid-axis-x":isCoarse?"grid-line-coarse":"grid-line-fine"));
+    }
+  }
+
+  function updateTransform(withEase){
+    world.style.transition = withEase ? "transform .5s cubic-bezier(.2,.7,.2,1)" : "none";
+    world.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.k})`;
+    if(typeof renderGrid === "function") renderGrid();
+    if(typeof renderArchGridLines === "function") renderArchGridLines();
+  }
+  updateTransform(false);
+
+  function toViewBox(clientX, clientY){
+    const pt = stage.createSVGPoint();
+    pt.x = clientX; pt.y = clientY;
+    const ctm = stage.getScreenCTM();
+    if(!ctm) return { x:0, y:0 };
+    const inv = ctm.inverse();
+    const p = pt.matrixTransform(inv);
+    return { x:p.x, y:p.y };
+  }
+
+  // Skjerm -> verdenskoordinater (samme rom som originX/tp/M er definert i)
+  function toWorldPoint(clientX, clientY){
+    const s = toViewBox(clientX, clientY);
+    return { x: (s.x - view.x)/view.k, y: (s.y - view.y)/view.k };
+  }
+
+  function zoomAt(px, py, factor){
+    const newK = Math.min(K_MAX, Math.max(K_MIN, view.k * factor));
+    const r = newK / view.k;
+    view.x = px - (px - view.x) * r;
+    view.y = py - (py - view.y) * r;
+    view.k = newK;
+    updateTransform(false);
+  }
+
+  // ---------- Verktøy: Se / Tegn / Rediger / Slett / Rom / Åpning ----------
+  let activeTool = "pan";
+  let selectedWallId = null;
+  const toolPan = document.getElementById("toolPan");
+  const toolDraw = document.getElementById("toolDraw");
+  const toolEdit = document.getElementById("toolEdit");
+  const toolErase = document.getElementById("toolErase");
+  const toolSpace = document.getElementById("toolSpace");
+  const toolOpening = document.getElementById("toolOpening");
+  const toolMeasure = document.getElementById("toolMeasure");
+  const toolGridLine = document.getElementById("toolGridLine");
+  const thicknessControl = document.getElementById("thicknessControl");
+  const thicknessInput = document.getElementById("thicknessInput");
+  const openingControl = document.getElementById("openingControl");
+  const gridLineControl = document.getElementById("gridLineControl");
+  const chainToggle = document.getElementById("chainToggle");
+  const chainDivider = document.getElementById("chainDivider");
+  const lengthDivider = document.getElementById("lengthDivider");
+  const lengthInput = document.getElementById("lengthInput");
+  const lengthUnit = document.getElementById("lengthUnit");
+
+  let thicknessMM = parseInt(thicknessInput.value, 10);
+
+  function setTool(tool){
+    activeTool = tool;
+    [toolPan, toolDraw, toolEdit, toolErase, toolSpace, toolOpening, toolMeasure, toolGridLine].forEach(b => { b.classList.remove("active", "danger"); b.setAttribute("aria-pressed","false"); });
+    if(tool === "pan"){ toolPan.classList.add("active"); toolPan.setAttribute("aria-pressed","true"); }
+    if(tool === "draw"){ toolDraw.classList.add("active"); toolDraw.setAttribute("aria-pressed","true"); }
+    if(tool === "edit"){ toolEdit.classList.add("active"); toolEdit.setAttribute("aria-pressed","true"); }
+    if(tool === "erase"){ toolErase.classList.add("active","danger"); toolErase.setAttribute("aria-pressed","true"); }
+    if(tool === "space"){ toolSpace.classList.add("active"); toolSpace.setAttribute("aria-pressed","true"); }
+    if(tool === "opening"){ toolOpening.classList.add("active"); toolOpening.setAttribute("aria-pressed","true"); }
+    if(tool === "measure"){ toolMeasure.classList.add("active"); toolMeasure.setAttribute("aria-pressed","true"); }
+    if(tool === "gridline"){ toolGridLine.classList.add("active"); toolGridLine.setAttribute("aria-pressed","true"); }
+
+    stage.classList.remove("tool-draw","tool-erase","tool-edit","tool-space","tool-opening","tool-measure","tool-gridline");
+    if(tool === "draw") stage.classList.add("tool-draw");
+    if(tool === "erase") stage.classList.add("tool-erase");
+    if(tool === "edit") stage.classList.add("tool-edit");
+    if(tool === "space") stage.classList.add("tool-space");
+    if(tool === "opening") stage.classList.add("tool-opening");
+    if(tool === "measure") stage.classList.add("tool-measure");
+    if(tool === "gridline") stage.classList.add("tool-gridline");
+
+    if(tool !== "edit"){ selectedWallId = null; }
+    if(tool !== "space") hideSpaceHint();
+    if(tool !== "space") closeNameInput(false);
+    if(tool !== "draw") chainMode = false;
+    if(tool !== "measure") cancelMeasure();
+    if(tool !== "opening"){ openingPreview = null; renderOpeningPreview(); selectedOpeningId = null; renderOpenings(); }
+    if(tool !== "pan" && typeof selectedObject !== "undefined" && selectedObject){ selectedObject = null; if(typeof renderSelectionRing === "function") renderSelectionRing(); }
+    if(tool !== "gridline"){ selectedGridLineId = null; renderArchGridLines(); renderGridLineDims(null, null); }
+    renderSnapMarker(null);
+
+    chainToggle.style.display = (tool === "draw") ? "inline-flex" : "none";
+    chainDivider.style.display = (tool === "draw") ? "block" : "none";
+    chainToggle.classList.toggle("active", chainMode);
+
+    const showLength = tool === "edit" && !!selectedWallId;
+    lengthDivider.style.display = showLength ? "block" : "none";
+    lengthInput.style.display = showLength ? "inline-block" : "none";
+    lengthUnit.style.display = showLength ? "inline" : "none";
+    if(showLength) syncLengthInput();
+
+    if(tool === "draw"){
+      thicknessInput.value = thicknessMM;
+      thicknessControl.style.display = "flex";
+    } else if(tool === "edit"){
+      thicknessControl.style.display = selectedWallId ? "flex" : "none";
+    } else {
+      thicknessControl.style.display = "none";
+    }
+    openingControl.style.display = (tool === "opening") ? "flex" : "none";
+    gridLineControl.style.display = (tool === "gridline") ? "flex" : "none";
+
+    if(tool !== "draw") cancelDraw();
+    renderInteriorWalls();
+  }
+  toolPan.addEventListener("click", ()=> setTool("pan"));
+  toolDraw.addEventListener("click", ()=> setTool("draw"));
+  toolEdit.addEventListener("click", ()=> setTool("edit"));
+  toolErase.addEventListener("click", ()=> setTool("erase"));
+  toolSpace.addEventListener("click", ()=> setTool("space"));
+  toolOpening.addEventListener("click", ()=> setTool("opening"));
+  toolMeasure.addEventListener("click", ()=> setTool("measure"));
+  toolGridLine.addEventListener("click", ()=> setTool("gridline"));
+
+  // ---------- Kjede-tegning ----------
+  let chainMode = false;
+  chainToggle.addEventListener("click", ()=>{
+    chainMode = !chainMode;
+    chainToggle.classList.toggle("active", chainMode);
+    if(!chainMode) cancelDraw();
+  });
+
+  // ---------- Eksakt lengde på valgt vegg ----------
+  function formatLengthValueOnly(meters){
+    if(displayUnit === "mm") return String(Math.round(meters*1000));
+    if(displayUnit === "cm") return (meters*100).toFixed(1).replace(".", ",");
+    if(displayUnit === "imperial"){
+      const p = metersToImperialParts(meters);
+      return p.feet + "'-" + p.wholeInches + fracString(p.remEighths) + '"';
+    }
+    return meters.toFixed(2).replace(".", ",");
+  }
+  function unitLabel(){
+    if(displayUnit === "mm") return "MM";
+    if(displayUnit === "cm") return "CM";
+    if(displayUnit === "imperial") return "";
+    return "M";
+  }
+
+  function syncLengthInput(){
+    if(!selectedWallId) return;
+    const w = interiorWalls.find(x => x.id === selectedWallId);
+    if(!w) return;
+    const lenM = Math.hypot(w.x2-w.x1, w.y2-w.y1);
+    lengthInput.value = formatLengthValueOnly(lenM);
+    lengthUnit.textContent = unitLabel();
+  }
+  lengthInput.addEventListener("focus", ()=>{
+    if(activeTool === "edit" && selectedWallId) pushUndo();
+  });
+  function applyLengthMeters(newLen){
+    const w = interiorWalls.find(x => x.id === selectedWallId);
+    if(!w) return;
+    const dx = w.x2-w.x1, dy = w.y2-w.y1;
+    const curLen = Math.hypot(dx,dy) || 0.0001;
+    const ux = dx/curLen, uy = dy/curLen;
+    newLen = Math.max(0.015, newLen);
+    const deps = findAttachedWalls(w.id);
+    w.x2 = snap5(w.x1 + ux*newLen);
+    w.y2 = snap5(w.y1 + uy*newLen);
+    updateWallGeometryDom(w.id);
+    propagateAttached(w.id, deps);
+    renderOpenings();
+    updateHighlight();
+    renderEditHandles();
+  }
+  lengthInput.addEventListener("input", ()=>{
+    const val = parseLength(lengthInput.value);
+    if(Number.isNaN(val) || val < 0.015) return;
+    applyLengthMeters(val);
+  });
+  lengthInput.addEventListener("blur", ()=>{
+    let val = parseLength(lengthInput.value);
+    if(Number.isNaN(val)) { syncLengthInput(); return; }
+    val = Math.min(20, Math.max(0.015, val));
+    applyLengthMeters(val);
+    syncLengthInput();
+    recomputeSpaces();
+  });
+  lengthInput.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter") lengthInput.blur();
+  });
+
+  // ---------- Dør/vindu-kontroller (type + bredde) ----------
+  let openingType = "door";
+  let openingWidthMM = 900;
+  const openingTypeDoor = document.getElementById("openingTypeDoor");
+  const openingTypeWindow = document.getElementById("openingTypeWindow");
+  const openingWidthInput = document.getElementById("openingWidthInput");
+
+  function setOpeningType(type){
+    openingType = type;
+    openingTypeDoor.classList.toggle("active", type === "door");
+    openingTypeWindow.classList.toggle("active", type === "window");
+    openingWidthMM = type === "door" ? 900 : 1200;
+    openingWidthInput.value = openingWidthMM;
+  }
+  openingTypeDoor.addEventListener("click", ()=> setOpeningType("door"));
+  openingTypeWindow.addEventListener("click", ()=> setOpeningType("window"));
+  openingWidthInput.addEventListener("input", ()=>{
+    const val = parseInt(openingWidthInput.value, 10);
+    if(!Number.isNaN(val)) openingWidthMM = val;
+  });
+  openingWidthInput.addEventListener("blur", ()=>{
+    let val = parseInt(openingWidthInput.value, 10);
+    if(Number.isNaN(val)) val = openingWidthMM;
+    val = Math.min(3000, Math.max(400, val));
+    openingWidthInput.value = val;
+    openingWidthMM = val;
+  });
+
+  function clampThickness(v){ return Math.min(500, Math.max(20, v)); }
+
+  function applyThickness(val){
+    if(activeTool === "draw"){
+      thicknessMM = val;
+      if(drawState) updatePreview(lastPointerClient.x, lastPointerClient.y);
+    } else if(activeTool === "edit" && selectedWallId){
+      const wallObj = interiorWalls.find(w => w.id === selectedWallId);
+      if(wallObj){ wallObj.t = val/1000; renderInteriorWalls(); }
+    }
+  }
+
+  thicknessInput.addEventListener("focus", ()=>{
+    if(activeTool === "edit" && selectedWallId) pushUndo();
+  });
+  thicknessInput.addEventListener("input", ()=>{
+    const val = parseInt(thicknessInput.value, 10);
+    if(Number.isNaN(val)) return;
+    applyThickness(val);
+  });
+  thicknessInput.addEventListener("blur", ()=>{
+    let val = parseInt(thicknessInput.value, 10);
+    if(Number.isNaN(val)) val = thicknessMM;
+    val = clampThickness(val);
+    thicknessInput.value = val;
+    applyThickness(val);
+    recomputeSpaces();
+  });
+  thicknessInput.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter") thicknessInput.blur();
+  });
+
+  // ---------- Alle vegger (ytter + inner) — ett enhetlig, redigerbart system ----------
+  let interiorWalls = [
+    { id:"WALL_N", x1:0,     y1:0,     x2:roomW, y2:0,     t:t },
+    { id:"WALL_S", x1:0,     y1:roomH, x2:roomW, y2:roomH, t:t },
+    { id:"WALL_W", x1:0,     y1:0,     x2:0,     y2:roomH, t:t },
+    { id:"WALL_E", x1:roomW, y1:0,     x2:roomW, y2:roomH, t:t },
+  ]; // { id, x1,y1,x2,y2 (meter), t (meter) }
+  let idCounter = 1;
+
+  function roomMetersToWorldPx(mx, my){
+    return { x: originX + mx*M, y: originY + my*M };
+  }
+  function worldPxToRoomMeters(wx, wy){
+    return { x: (wx - originX)/M, y: (wy - originY)/M };
+  }
+
+  // ---------- Snap til veggflate (start på/nær en annen vegg) ----------
+  function getAllWallLinesPx(){
+    return interiorWalls.map(w => {
+      const p1 = roomMetersToWorldPx(w.x1, w.y1);
+      const p2 = roomMetersToWorldPx(w.x2, w.y2);
+      return { id:w.id, x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y, t: w.t*M };
+    });
+  }
+
+  function wallLocal(line, px, py){
+    const dx = line.x2-line.x1, dy = line.y2-line.y1;
+    const len = Math.hypot(dx,dy) || 0.0001;
+    const ux = dx/len, uy = dy/len;
+    const nx = -uy, ny = ux;
+    const vx = px-line.x1, vy = py-line.y1;
+    return { s: vx*ux+vy*uy, p: vx*nx+vy*ny, len, ux, uy, nx, ny };
+  }
+
+  function pointOnWallFace(line, px, py){
+    const loc = wallLocal(line, px, py);
+    const half = line.t/2;
+    return loc.s >= -half && loc.s <= loc.len+half && loc.p >= -half && loc.p <= half;
+  }
+
+  function findAnchorWallAt(px, py){
+    const lines = getAllWallLinesPx();
+    for(const line of lines){
+      if(pointOnWallFace(line, px, py)) return line;
+    }
+    return null;
+  }
+
+  function rayExitPoint(line, px0, py0, dirx, diry){
+    const loc = wallLocal(line, px0, py0);
+    const ds = dirx*loc.ux + diry*loc.uy;
+    const dp = dirx*loc.nx + diry*loc.ny;
+    const half = line.t/2;
+    let tExit = Infinity;
+    if(Math.abs(ds) > 1e-9){
+      const target = ds > 0 ? (loc.len+half) : -half;
+      const cand = (target - loc.s)/ds;
+      if(cand > 1e-6) tExit = Math.min(tExit, cand);
+    }
+    if(Math.abs(dp) > 1e-9){
+      const target = dp > 0 ? half : -half;
+      const cand = (target - loc.p)/dp;
+      if(cand > 1e-6) tExit = Math.min(tExit, cand);
+    }
+    if(!isFinite(tExit)) return null;
+    return { x: px0 + dirx*tExit, y: py0 + diry*tExit };
+  }
+
+  // Finner t-verdien der en stråle (ox,oy)+t*(dirx,diry) FØRST går inn i veggens footprint.
+  function raySlabEntry(line, ox, oy, dirx, diry){
+    const loc = wallLocal(line, ox, oy);
+    const ds = dirx*loc.ux + diry*loc.uy;
+    const dp = dirx*loc.nx + diry*loc.ny;
+    const half = line.t/2;
+    let tMin = -Infinity, tMax = Infinity;
+    if(Math.abs(ds) < 1e-9){
+      if(loc.s < -half || loc.s > loc.len+half) return null;
+    } else {
+      let t1 = (-half - loc.s)/ds, t2 = (loc.len+half - loc.s)/ds;
+      if(t1 > t2){ const tmp=t1; t1=t2; t2=tmp; }
+      tMin = Math.max(tMin, t1); tMax = Math.min(tMax, t2);
+    }
+    if(Math.abs(dp) < 1e-9){
+      if(loc.p < -half || loc.p > half) return null;
+    } else {
+      let t1 = (-half - loc.p)/dp, t2 = (half - loc.p)/dp;
+      if(t1 > t2){ const tmp=t1; t1=t2; t2=tmp; }
+      tMin = Math.max(tMin, t1); tMax = Math.min(tMax, t2);
+    }
+    if(tMin > tMax) return null;
+    return { tEntry: tMin, tExit: tMax };
+  }
+
+  function normalizeVec(dx, dy){
+    const len = Math.hypot(dx,dy) || 0.0001;
+    return { x: dx/len, y: dy/len };
+  }
+
+  // Finner alle andre vegger som har et endepunkt festet til veggen med id wallId,
+  // basert på veggens NÅVÆRENDE footprint (kalles ved start av et drag).
+  function findAttachedWalls(wallId){
+    const w = interiorWalls.find(x => x.id === wallId);
+    if(!w) return [];
+    const p1 = roomMetersToWorldPx(w.x1, w.y1);
+    const p2 = roomMetersToWorldPx(w.x2, w.y2);
+    const line = { x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y, t:w.t*M };
+    const deps = [];
+    interiorWalls.forEach(d => {
+      if(d.id === wallId) return;
+      const dp1 = roomMetersToWorldPx(d.x1, d.y1);
+      const dp2 = roomMetersToWorldPx(d.x2, d.y2);
+      if(pointOnWallFace(line, dp1.x, dp1.y)){
+        deps.push({ id:d.id, end:"1", farPx:dp2, dir:normalizeVec(dp1.x-dp2.x, dp1.y-dp2.y) });
+      }
+      if(pointOnWallFace(line, dp2.x, dp2.y)){
+        deps.push({ id:d.id, end:"2", farPx:dp1, dir:normalizeVec(dp2.x-dp1.x, dp2.y-dp1.y) });
+      }
+    });
+    return deps;
+  }
+
+  // Følger tilknyttede vegger etter at ankerveggen (wallId) har fått ny geometri:
+  // strekker/korter dem inn slik at de fortsatt møter ankerveggens (nye) flate.
+  function propagateAttached(wallId, deps){
+    if(!deps.length) return;
+    const w = interiorWalls.find(x => x.id === wallId);
+    if(!w) return;
+    const p1 = roomMetersToWorldPx(w.x1, w.y1);
+    const p2 = roomMetersToWorldPx(w.x2, w.y2);
+    const line = { x1:p1.x, y1:p1.y, x2:p2.x, y2:p2.y, t:w.t*M };
+    deps.forEach(dep => {
+      const hit = raySlabEntry(line, dep.farPx.x, dep.farPx.y, dep.dir.x, dep.dir.y);
+      if(!hit || hit.tExit < 0) return;
+      const tt = Math.max(hit.tEntry, 0);
+      const px = dep.farPx.x + dep.dir.x*tt;
+      const py = dep.farPx.y + dep.dir.y*tt;
+      const m = worldPxToRoomMeters(px, py);
+      const dWall = interiorWalls.find(x => x.id === dep.id);
+      if(!dWall) return;
+      if(dep.end === "1"){ dWall.x1 = snap5(m.x); dWall.y1 = snap5(m.y); }
+      else { dWall.x2 = snap5(m.x); dWall.y2 = snap5(m.y); }
+      updateWallGeometryDom(dep.id);
+    });
+  }
+
+  function wallPolygonPoints(p1, p2, thicknessPx){
+    const dxp = p2.x - p1.x, dyp = p2.y - p1.y;
+    const len = Math.hypot(dxp, dyp) || 0.0001;
+    const ux = dxp/len, uy = dyp/len;
+    const nx = -uy, ny = ux;
+    const ext = thicknessPx/2;
+    const a = { x: p1.x - ux*ext, y: p1.y - uy*ext };
+    const b = { x: p2.x + ux*ext, y: p2.y + uy*ext };
+    const p = [
+      { x: a.x + nx*thicknessPx/2, y: a.y + ny*thicknessPx/2 },
+      { x: b.x + nx*thicknessPx/2, y: b.y + ny*thicknessPx/2 },
+      { x: b.x - nx*thicknessPx/2, y: b.y - ny*thicknessPx/2 },
+      { x: a.x - nx*thicknessPx/2, y: a.y - ny*thicknessPx/2 },
+    ];
+    return p.map(pt => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(" ");
+  }
+
+  function makeWallShape(wallData, opts){
+    const p1 = roomMetersToWorldPx(wallData.x1, wallData.y1);
+    const p2 = roomMetersToWorldPx(wallData.x2, wallData.y2);
+    const thicknessPx = wallData.t * M;
+    const pts = wallPolygonPoints(p1, p2, thicknessPx);
+    const attrs = Object.assign({ points: pts, class: "interior-wall", "data-id": wallData.id }, opts);
+    return el("polygon", attrs);
+  }
+
+  let hoveredWallId = null;
+
+  function updateHighlight(){
+    while(highlightLayer.firstChild) highlightLayer.removeChild(highlightLayer.firstChild);
+    let target = null, color = null;
+    if(activeTool === "erase" && hoveredWallId){
+      target = interiorWalls.find(w => w.id === hoveredWallId);
+      color = "var(--danger)";
+    } else if(activeTool === "edit" && selectedWallId){
+      target = interiorWalls.find(w => w.id === selectedWallId);
+      color = "var(--accent)";
+    } else if(activeTool === "edit" && hoveredWallId){
+      target = interiorWalls.find(w => w.id === hoveredWallId);
+      color = "var(--accent)";
+    }
+    if(target){
+      const shape = makeWallShape(target, { fill:"none", stroke:color, "stroke-width":"2", "vector-effect":"non-scaling-stroke", "pointer-events":"none" });
+      highlightLayer.appendChild(shape);
+    }
+  }
+
+  // Oppdaterer punktene til en vegg direkte i DOM (uten å fjerne/gjenskape elementene) —
+  // avgjørende under et drag, siden pointer capture ryker hvis elementet byttes ut underveis.
+  function updateWallGeometryDom(wallId){
+    const w = interiorWalls.find(x => x.id === wallId);
+    if(!w) return;
+    const pts = wallPolygonPoints(roomMetersToWorldPx(w.x1,w.y1), roomMetersToWorldPx(w.x2,w.y2), w.t*M);
+    [draftStrokes, draftFills, polishStrokes, polishFills].forEach(g => {
+      const shape = g.querySelector('[data-id="'+wallId+'"]');
+      if(shape) shape.setAttribute("points", pts);
+    });
+  }
+
+  function renderEditHandles(){
+    while(editHandles.firstChild) editHandles.removeChild(editHandles.firstChild);
+    if(activeTool !== "edit" || !selectedWallId) return;
+    const w = interiorWalls.find(x => x.id === selectedWallId);
+    if(!w) return;
+    const p1 = roomMetersToWorldPx(w.x1, w.y1);
+    const p2 = roomMetersToWorldPx(w.x2, w.y2);
+    [{ p:p1, which:"1" }, { p:p2, which:"2" }].forEach(h => {
+      const c = el("circle", { cx:h.p.x, cy:h.p.y, r:"6", class:"edit-handle" });
+      attachHandleDrag(c, w, h.which);
+      editHandles.appendChild(c);
+    });
+  }
+
+  // Deles av mål-verktøyet og håndtak-drag: retter opp NESTEN vannrette/loddrette
+  // punkter til nøyaktig 0°/90° i forhold til et referansepunkt (px), uten å røre ekte diagonaler.
+  function snapAlmostAxis(candPx, refPx, tolerancePx){
+    const ddx = candPx.x - refPx.x, ddy = candPx.y - refPx.y;
+    if(Math.abs(ddy) <= tolerancePx && Math.abs(ddx) > tolerancePx) return { x:candPx.x, y:refPx.y };
+    if(Math.abs(ddx) <= tolerancePx && Math.abs(ddy) > tolerancePx) return { x:refPx.x, y:candPx.y };
+    return candPx;
+  }
+
+  function attachHandleDrag(circleEl, wallData, which){
+    circleEl.addEventListener("pointerdown", (e)=>{
+      e.stopPropagation();
+      circleEl.setPointerCapture(e.pointerId);
+      pushUndo();
+      const deps = findAttachedWalls(wallData.id);
+
+      const onMove = (ev)=>{
+        const w2 = toWorldPoint(ev.clientX, ev.clientY);
+        const m = worldPxToRoomMeters(w2.x, w2.y);
+        let sx = snap5(m.x), sy = snap5(m.y);
+
+        // Nesten vannrett/loddrett i forhold til den andre (faste) enden? Rett opp til nøyaktig 0°/90°,
+        // slik at veggen ikke får en umerkelig skjevhet av grid-avrunding i bare den ene enden.
+        if(snapEnabled){
+          const otherX = which === "1" ? wallData.x2 : wallData.x1;
+          const otherY = which === "1" ? wallData.y2 : wallData.y1;
+          const otherPx = roomMetersToWorldPx(otherX, otherY);
+          const candPx = roomMetersToWorldPx(sx, sy);
+          const fixedPx = snapAlmostAxis(candPx, otherPx, 9);
+          const fixedM = worldPxToRoomMeters(fixedPx.x, fixedPx.y);
+          sx = fixedM.x; sy = fixedM.y;
+        }
+
+        if(which === "1"){ wallData.x1 = sx; wallData.y1 = sy; }
+        else { wallData.x2 = sx; wallData.y2 = sy; }
+        const snappedPx = roomMetersToWorldPx(sx, sy);
+        circleEl.setAttribute("cx", snappedPx.x);
+        circleEl.setAttribute("cy", snappedPx.y);
+        updateWallGeometryDom(wallData.id);
+        propagateAttached(wallData.id, deps);
+        renderOpenings();
+        updateHighlight();
+        syncLengthInput();
+      };
+      const onUp = (ev)=>{
+        circleEl.releasePointerCapture(ev.pointerId);
+        circleEl.removeEventListener("pointermove", onMove);
+        circleEl.removeEventListener("pointerup", onUp);
+        recomputeSpaces();
+      };
+      circleEl.addEventListener("pointermove", onMove);
+      circleEl.addEventListener("pointerup", onUp);
+    });
+  }
+
+  function attachInteractionHandlers(fillEl, wallData){
+    fillEl.addEventListener("pointerdown", (e)=>{
+      if(activeTool === "erase"){
+        e.stopPropagation();
+        pushUndo();
+        interiorWalls = interiorWalls.filter(w => w.id !== wallData.id);
+        openings = openings.filter(o => o.wallId !== wallData.id);
+        if(selectedWallId === wallData.id) selectedWallId = null;
+        if(hoveredWallId === wallData.id) hoveredWallId = null;
+        renderInteriorWalls();
+        recomputeSpaces();
+        return;
+      }
+      if(activeTool === "edit"){
+        e.stopPropagation();
+        selectedWallId = wallData.id;
+        const mm = Math.round(wallData.t * 1000);
+        thicknessInput.value = mm;
+        thicknessControl.style.display = "flex";
+        lengthDivider.style.display = "block";
+        lengthInput.style.display = "inline-block";
+        lengthUnit.style.display = "inline";
+        syncLengthInput();
+        updateHighlight();
+        renderEditHandles();
+
+        // Potensielt kroppsdrag: flytt hele veggen uten å endre lengde/vinkel.
+        // Vi unngår full renderInteriorWalls() her — den ville fjernet fillEl
+        // midt i draget og ødelagt pointer capture.
+        const startClient = { x:e.clientX, y:e.clientY };
+        const startWorld = toWorldPoint(e.clientX, e.clientY);
+        const orig = { x1:wallData.x1, y1:wallData.y1, x2:wallData.x2, y2:wallData.y2 };
+        let moved = false;
+        let deps = null;
+        fillEl.setPointerCapture(e.pointerId);
+
+        const onMove = (ev)=>{
+          const cur = toWorldPoint(ev.clientX, ev.clientY);
+          const dxPx = cur.x - startWorld.x, dyPx = cur.y - startWorld.y;
+          if(!moved){
+            if(Math.hypot(ev.clientX-startClient.x, ev.clientY-startClient.y) < 3) return;
+            moved = true;
+            pushUndo();
+            deps = findAttachedWalls(wallData.id);
+          }
+          const dxM = dxPx/M, dyM = dyPx/M;
+          wallData.x1 = snap5(orig.x1+dxM); wallData.y1 = snap5(orig.y1+dyM);
+          wallData.x2 = snap5(orig.x2+dxM); wallData.y2 = snap5(orig.y2+dyM);
+          updateWallGeometryDom(wallData.id);
+          if(deps) propagateAttached(wallData.id, deps);
+          renderOpenings();
+          updateHighlight();
+          renderEditHandles();
+        };
+        const onUp = (ev)=>{
+          fillEl.releasePointerCapture(ev.pointerId);
+          fillEl.removeEventListener("pointermove", onMove);
+          fillEl.removeEventListener("pointerup", onUp);
+          if(moved) recomputeSpaces();
+          renderInteriorWalls();
+        };
+        fillEl.addEventListener("pointermove", onMove);
+        fillEl.addEventListener("pointerup", onUp);
+        return;
+      }
+    });
+    fillEl.addEventListener("pointerenter", ()=>{
+      if(activeTool === "erase" || activeTool === "edit"){
+        hoveredWallId = wallData.id;
+        updateHighlight();
+      }
+    });
+    fillEl.addEventListener("pointerleave", ()=>{
+      if(hoveredWallId === wallData.id){
+        hoveredWallId = null;
+        updateHighlight();
+      }
+    });
+  }
+
+  function renderInteriorWalls(){
+    [draftStrokes, draftFills, polishStrokes, polishFills].forEach(g =>
+      g.querySelectorAll(".interior-wall").forEach(n => n.remove())
+    );
+
+    interiorWalls.forEach(w => {
+      const ds = makeWallShape(w, { fill:"none", stroke:"var(--line)", "stroke-width":"1.1", "vector-effect":"non-scaling-stroke" });
+      const df = makeWallShape(w, { fill:"var(--wall-drafting)" });
+      const ps = makeWallShape(w, { fill:"none", stroke:"rgba(10,11,13,0.6)", "stroke-width":"0.6", "vector-effect":"non-scaling-stroke" });
+      const pf = makeWallShape(w, { fill:"url(#wallGrad)" });
+      attachInteractionHandlers(df, w);
+      attachInteractionHandlers(pf, w);
+      draftStrokes.appendChild(ds);
+      draftFills.appendChild(df);
+      polishStrokes.appendChild(ps);
+      polishFills.appendChild(pf);
+    });
+
+    if(previewWall){
+      const df = makeWallShape(previewWall, { fill:"var(--wall-drafting)", stroke:"var(--line)", "stroke-width":"1.1", "vector-effect":"non-scaling-stroke", "stroke-dasharray":"3 3", class:"interior-wall wall-preview" });
+      const pf = makeWallShape(previewWall, { fill:"url(#wallGrad)", stroke:"rgba(10,11,13,0.6)", "stroke-width":"0.6", "vector-effect":"non-scaling-stroke", class:"interior-wall wall-preview" });
+      draftFills.appendChild(df);
+      polishFills.appendChild(pf);
+    }
+
+    updateHighlight();
+    renderEditHandles();
+    renderOpenings();
+  }
+
+  // ---------- Dører og vinduer ----------
+  let openings = []; // { id, wallId, s (meter langs veggen fra x1,y1), width (meter), type:'door'|'window', flip }
+  let openingPreview = null; // { wallId, sPx, wPx, lenPx } — midlertidig, mens man plasserer
+  let openingIdCounter = 1;
+
+  function wallGeometryPx(w){
+    const p1 = roomMetersToWorldPx(w.x1, w.y1);
+    const p2 = roomMetersToWorldPx(w.x2, w.y2);
+    const dx = p2.x-p1.x, dy = p2.y-p1.y;
+    const len = Math.hypot(dx,dy) || 0.0001;
+    const ux = dx/len, uy = dy/len;
+    const nx = -uy, ny = ux;
+    return { p1, p2, ux, uy, nx, ny, lenPx: len, t: w.t*M };
+  }
+
+  let selectedOpeningId = null;
+  const openingEditOverlay = document.getElementById("openingEditOverlay");
+  const btnHingeSide = document.getElementById("btnHingeSide");
+  const btnSwingSide = document.getElementById("btnSwingSide");
+  const btnDeleteOpening = document.getElementById("btnDeleteOpening");
+  const openingWidthEdit = document.getElementById("openingWidthEdit");
+
+  openingWidthEdit.addEventListener("focus", ()=>{ pushUndo(); });
+  openingWidthEdit.addEventListener("keydown", (e)=>{ if(e.key === "Enter") openingWidthEdit.blur(); });
+  openingWidthEdit.addEventListener("blur", ()=>{
+    const op = openings.find(o => o.id === selectedOpeningId);
+    if(!op) return;
+    let newW = parseInt(openingWidthEdit.value, 10);
+    if(Number.isNaN(newW)) { openingWidthEdit.value = Math.round(op.width*1000); return; }
+    newW = Math.min(5000, Math.max(200, newW));
+    const newWM = newW/1000;
+    // Sjekk klaring
+    const wallObj = interiorWalls.find(x => x.id === op.wallId);
+    if(wallObj){
+      const p1 = roomMetersToWorldPx(wallObj.x1, wallObj.y1);
+      const p2 = roomMetersToWorldPx(wallObj.x2, wallObj.y2);
+      const dx = p2.x-p1.x, dy = p2.y-p1.y;
+      const lenPx = Math.hypot(dx,dy);
+      const sPx = op.s*M;
+      const wPx = newWM*M;
+      const clearPx = OPENING_MIN_CLEARANCE*M;
+      if(wPx/2 + clearPx > sPx || sPx + wPx/2 + clearPx > lenPx){
+        showSpaceHint(vb.w/2, vb.h/2, "PLASS IKKE NOK FOR " + newW + " MM");
+        openingWidthEdit.value = Math.round(op.width*1000);
+        return;
+      }
+    }
+    op.width = newWM;
+    renderOpenings();
+    updateOpeningEditOverlay();
+  });
+
+  btnHingeSide.addEventListener("click", ()=>{
+    const op = openings.find(o => o.id === selectedOpeningId);
+    if(!op) return;
+    pushUndo();
+    toggleHingeSide(op);
+    renderOpenings();
+  });
+  btnSwingSide.addEventListener("click", ()=>{
+    const op = openings.find(o => o.id === selectedOpeningId);
+    if(!op) return;
+    pushUndo();
+    toggleSwingSide(op);
+    renderOpenings();
+  });
+  btnDeleteOpening.addEventListener("click", ()=>{
+    if(!selectedOpeningId) return;
+    pushUndo();
+    openings = openings.filter(o => o.id !== selectedOpeningId);
+    selectedOpeningId = null;
+    renderOpenings();
+  });
+
+  function toggleHingeSide(op){
+    op.hingeEnd = (op.hingeEnd === "1") ? "2" : "1";
+  }
+  function toggleSwingSide(op){
+    op.flip = !op.flip;
+  }
+
+  function attachOpeningHandlers(grp, op){
+    grp.addEventListener("pointerdown", (e)=>{
+      if(activeTool === "erase"){
+        e.stopPropagation();
+        pushUndo();
+        openings = openings.filter(o => o.id !== op.id);
+        if(selectedOpeningId === op.id) selectedOpeningId = null;
+        renderOpenings();
+        return;
+      }
+      if(activeTool === "opening"){
+        e.stopPropagation();
+        selectedOpeningId = (selectedOpeningId === op.id) ? null : op.id;
+        renderOpenings();
+
+        // Drag langs veggen for å flytte åpningen
+        const startClient = { x:e.clientX, y:e.clientY };
+        let moved = false;
+        grp.setPointerCapture(e.pointerId);
+        grp.style.cursor = "grabbing";
+
+        const onMove = (ev)=>{
+          if(!moved && Math.hypot(ev.clientX-startClient.x, ev.clientY-startClient.y) < 4) return;
+          moved = true;
+          const wallObj = interiorWalls.find(x => x.id === op.wallId);
+          if(!wallObj) return;
+          const p1 = roomMetersToWorldPx(wallObj.x1, wallObj.y1);
+          const p2 = roomMetersToWorldPx(wallObj.x2, wallObj.y2);
+          const dx = p2.x-p1.x, dy = p2.y-p1.y;
+          const lenPx = Math.hypot(dx,dy)||0.0001;
+          const ux = dx/lenPx, uy = dy/lenPx;
+          const w2 = toWorldPoint(ev.clientX, ev.clientY);
+          const vx = w2.x-p1.x, vy = w2.y-p1.y;
+          const sPx = vx*ux + vy*uy;
+          const wPx = op.width*M;
+          const clearPx = OPENING_MIN_CLEARANCE*M;
+          const clampedS = Math.min(Math.max(sPx, wPx/2+clearPx), lenPx-wPx/2-clearPx);
+          op.s = snap5(clampedS/M);
+          renderOpenings();
+          updateOpeningEditOverlay();
+          // Vis midlertidige mål som ved ny plassering
+          const previewInfo = { wallId: op.wallId, sPx: clampedS, wPx, lenPx };
+          renderOpeningPreviewDims(previewInfo);
+        };
+        const onUp = ()=>{
+          grp.style.cursor = "";
+          grp.releasePointerCapture(e.pointerId);
+          grp.removeEventListener("pointermove", onMove);
+          grp.removeEventListener("pointerup", onUp);
+          while(openingPreviewLayer.firstChild) openingPreviewLayer.removeChild(openingPreviewLayer.firstChild);
+          if(moved) recomputeSpaces();
+        };
+        grp.addEventListener("pointermove", onMove);
+        grp.addEventListener("pointerup", onUp);
+        return;
+      }
+    });
+  }
+
+  function updateOpeningEditOverlay(){
+    const op = openings.find(o => o.id === selectedOpeningId);
+    if(!op){
+      openingEditOverlay.style.display = "none";
+      return;
+    }
+    const w = interiorWalls.find(x => x.id === op.wallId);
+    if(!w){
+      openingEditOverlay.style.display = "none";
+      return;
+    }
+    const g = wallGeometryPx(w);
+    const sPx = op.s*M;
+    const midX = g.p1.x + g.ux*sPx, midY = g.p1.y + g.uy*sPx;
+    const labelX = midX + g.nx*(g.t/2 + 24), labelY = midY + g.ny*(g.t/2 + 24);
+    const client = worldToClient(labelX, labelY);
+    openingEditOverlay.style.left = client.x + "px";
+    openingEditOverlay.style.top = client.y + "px";
+    openingEditOverlay.style.display = "flex";
+    btnHingeSide.style.display = op.type === "door" ? "flex" : "none";
+    btnSwingSide.style.display = op.type === "door" ? "flex" : "none";
+    openingWidthEdit.value = Math.round(op.width * 1000);
+    requestAnimationFrame(()=>{ openingWidthEdit.focus(); openingWidthEdit.select(); });
+  }
+
+  function renderOpenings(){
+    while(openingsLayer.firstChild) openingsLayer.removeChild(openingsLayer.firstChild);
+    openings.forEach(op => {
+      const w = interiorWalls.find(x => x.id === op.wallId);
+      if(!w) return;
+      const g = wallGeometryPx(w);
+      const wPx = op.width*M;
+      let sPx = op.s*M;
+      sPx = Math.min(Math.max(sPx, wPx/2), Math.max(g.lenPx - wPx/2, wPx/2));
+      const half = g.t/2;
+
+      const aX = g.p1.x + g.ux*(sPx - wPx/2), aY = g.p1.y + g.uy*(sPx - wPx/2);
+      const bX = g.p1.x + g.ux*(sPx + wPx/2), bY = g.p1.y + g.uy*(sPx + wPx/2);
+
+      const isSelected = op.id === selectedOpeningId;
+      const grp = el("g", { class:"opening-group" + (isSelected ? " selected" : ""), "data-id": op.id });
+
+      const cutPts = [
+        { x:aX+g.nx*half, y:aY+g.ny*half },
+        { x:bX+g.nx*half, y:bY+g.ny*half },
+        { x:bX-g.nx*half, y:bY-g.ny*half },
+        { x:aX-g.nx*half, y:aY-g.ny*half },
+      ].map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+      grp.appendChild(el("polygon", { points:cutPts, class:"opening-cut" }));
+
+      [{x:aX,y:aY}, {x:bX,y:bY}].forEach(pt => {
+        grp.appendChild(el("line", {
+          x1:pt.x+g.nx*half, y1:pt.y+g.ny*half,
+          x2:pt.x-g.nx*half, y2:pt.y-g.ny*half,
+          class:"opening-jamb"
+        }));
+      });
+
+      if(op.type === "door"){
+        const atB = op.hingeEnd === "2";
+        const hinge = atB ? { x:bX, y:bY } : { x:aX, y:aY };
+        const otherJamb = atB ? { x:aX, y:aY } : { x:bX, y:bY };
+        const sign = op.flip ? -1 : 1;
+        const leafTip = { x: hinge.x + g.nx*sign*wPx, y: hinge.y + g.ny*sign*wPx };
+        grp.appendChild(el("line", { x1:hinge.x, y1:hinge.y, x2:leafTip.x, y2:leafTip.y, class:"opening-leaf" }));
+        const cross = (otherJamb.x-hinge.x)*(leafTip.y-hinge.y) - (otherJamb.y-hinge.y)*(leafTip.x-hinge.x);
+        const sweep = cross > 0 ? 1 : 0;
+        const arcPath = `M ${otherJamb.x.toFixed(1)},${otherJamb.y.toFixed(1)} A ${wPx.toFixed(1)},${wPx.toFixed(1)} 0 0,${sweep} ${leafTip.x.toFixed(1)},${leafTip.y.toFixed(1)}`;
+        grp.appendChild(el("path", { d:arcPath, class:"opening-arc" }));
+      } else {
+        [-1, 1].forEach(side => {
+          const off = half*0.35*side;
+          grp.appendChild(el("line", {
+            x1:aX+g.nx*off, y1:aY+g.ny*off,
+            x2:bX+g.nx*off, y2:bY+g.ny*off,
+            class:"opening-pane"
+          }));
+        });
+      }
+
+      attachOpeningHandlers(grp, op);
+      attachPanSelectToOpening(grp, op);
+      openingsLayer.appendChild(grp);
+    });
+    updateOpeningEditOverlay();
+    renderSelectionRing();
+  }
+
+  const OPENING_MIN_CLEARANCE = 0.1; // meter — min. avstand til veggende/annen vegg
+
+  // Finner alle "skjøtepunkter" langs en vegg (px, langs veggens egen lengde):
+  // veggens egne to ender, pluss der andre vegger er festet til den (T-skjøter).
+  function getJunctionsAlongWall(wallId){
+    const w = interiorWalls.find(x => x.id === wallId);
+    if(!w) return [];
+    const g = wallGeometryPx(w);
+    const line = { x1:g.p1.x, y1:g.p1.y, x2:g.p2.x, y2:g.p2.y, t:w.t*M };
+    const junctions = [0, g.lenPx];
+    interiorWalls.forEach(d => {
+      if(d.id === wallId) return;
+      [roomMetersToWorldPx(d.x1, d.y1), roomMetersToWorldPx(d.x2, d.y2)].forEach(pt => {
+        if(pointOnWallFace(line, pt.x, pt.y)){
+          const loc = wallLocal(line, pt.x, pt.y);
+          junctions.push(Math.min(Math.max(loc.s, 0), g.lenPx));
+        }
+      });
+    });
+    return junctions;
+  }
+
+  function openingClearanceOk(sPx, wPx, junctions, clearancePx){
+    const left = sPx - wPx/2, right = sPx + wPx/2;
+    const eps = 0.5; // liten toleranse for avrunding
+    return junctions.every(j => j <= left - clearancePx + eps || j >= right + clearancePx - eps);
+  }
+
+  function computeOpeningPreview(clientX, clientY){
+    const w = toWorldPoint(clientX, clientY);
+    const line = findAnchorWallAt(w.x, w.y);
+    if(!line) return null;
+    const wallObj = interiorWalls.find(x => x.id === line.id);
+    if(!wallObj) return null;
+    const loc = wallLocal(line, w.x, w.y);
+    const wPx = openingWidthMM/1000*M;
+    const clearancePx = OPENING_MIN_CLEARANCE*M;
+    if(loc.len < wPx + 2*clearancePx) return null;
+    const sPx = Math.min(Math.max(loc.s, wPx/2+clearancePx), loc.len - wPx/2 - clearancePx);
+    return { wallId: line.id, sPx, wPx, lenPx: loc.len };
+  }
+
+  function renderOpeningPreview(){
+    while(openingPreviewLayer.firstChild) openingPreviewLayer.removeChild(openingPreviewLayer.firstChild);
+    if(!openingPreview) return;
+    renderOpeningPreviewDims(openingPreview);
+    const w = interiorWalls.find(x => x.id === openingPreview.wallId);
+    if(!w) return;
+    const g = wallGeometryPx(w);
+    const { sPx, wPx } = openingPreview;
+    const half = g.t/2;
+    const nearX = g.p1.x + g.ux*(sPx-wPx/2), nearY = g.p1.y + g.uy*(sPx-wPx/2);
+    const farX = g.p1.x + g.ux*(sPx+wPx/2), farY = g.p1.y + g.uy*(sPx+wPx/2);
+    const cutPts = [
+      { x:nearX+g.nx*half, y:nearY+g.ny*half }, { x:farX+g.nx*half, y:farY+g.ny*half },
+      { x:farX-g.nx*half, y:farY-g.ny*half }, { x:nearX-g.nx*half, y:nearY-g.ny*half },
+    ].map(p => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+    openingPreviewLayer.appendChild(el("polygon", { points:cutPts, class:"opening-cut-preview" }));
+  }
+
+  function renderOpeningPreviewDims(preview){
+    while(openingPreviewLayer.firstChild) openingPreviewLayer.removeChild(openingPreviewLayer.firstChild);
+    if(!preview) return;
+    const w = interiorWalls.find(x => x.id === preview.wallId);
+    if(!w) return;
+    const g = wallGeometryPx(w);
+    const { sPx, wPx } = preview;
+    const half = g.t/2;
+    const nearX = g.p1.x + g.ux*(sPx-wPx/2), nearY = g.p1.y + g.uy*(sPx-wPx/2);
+    const farX = g.p1.x + g.ux*(sPx+wPx/2), farY = g.p1.y + g.uy*(sPx+wPx/2);
+    const offsetPx = half + 22;
+    const d1 = buildDimensionGroup(g.p1, { x:nearX, y:nearY }, offsetPx, (sPx-wPx/2)/M, false, null);
+    const d2 = buildDimensionGroup({ x:farX, y:farY }, g.p2, offsetPx, (g.lenPx-(sPx+wPx/2))/M, false, null);
+    openingPreviewLayer.appendChild(d1);
+    openingPreviewLayer.appendChild(d2);
+  }
+
+  function tryCreateOpeningAt(clientX, clientY){
+    const w = toWorldPoint(clientX, clientY);
+    const preview = computeOpeningPreview(clientX, clientY);
+    if(!preview){
+      const line = findAnchorWallAt(w.x, w.y);
+      showSpaceHint(w.x, w.y, line ? "VEGGEN ER FOR KORT" : "KLIKK PÅ EN VEGG");
+      return;
+    }
+    const { wallId, sPx, wPx } = preview;
+    const clearancePx = OPENING_MIN_CLEARANCE*M;
+    const junctions = getJunctionsAlongWall(wallId);
+    if(!openingClearanceOk(sPx, wPx, junctions, clearancePx)){
+      showSpaceHint(w.x, w.y, "FOR NÆR ET HJØRNE ELLER EN VEGG");
+      return;
+    }
+    pushUndo();
+    openings.push({
+      id: "op-" + (openingIdCounter++),
+      wallId: wallId,
+      s: snap5(sPx/M),
+      width: openingWidthMM/1000,
+      type: openingType,
+      hingeEnd: "1",
+      flip: false
+    });
+    renderOpenings();
+  }
+
+  // ---------- Mål (målsettingslinjer) ----------
+  let dimensions = []; // { id, x1,y1,x2,y2 (meter), offset (meter, signert) }
+  let dimIdCounter = 1;
+  let dimState = null; // { p1:{x,y}, p2:{x,y}|null, phase:'p2'|'offset' }
+
+  // Hvis punktet er NESTEN vannrett/loddrett fra forrige punkt (innenfor noen få piksler),
+  // rettes det opp til nøyaktig 90°. Er avviket større, tolkes det som en ekte diagonal.
+  function applyAngleCleanup(m, fromM){
+    if(!fromM || !snapEnabled) return m;
+    const p1 = roomMetersToWorldPx(fromM.x, fromM.y);
+    const p2 = roomMetersToWorldPx(m.x, m.y);
+    const fixed = snapAlmostAxis(p2, p1, 9);
+    return worldPxToRoomMeters(fixed.x, fixed.y);
+  }
+
+  function measureSnapPoint(clientX, clientY, fromM){
+    const w = toWorldPoint(clientX, clientY);
+
+    // Hjørne sjekkes med rå pekerposisjon — skal fortsatt kunne måles diagonalt (f.eks. romdiagonaler).
+    const vertex = findNearbyVertex(w.x, w.y, VERTEX_SNAP_PX);
+    if(vertex) return applyAngleCleanup(worldPxToRoomMeters(vertex.x, vertex.y), fromM);
+
+    // Kant: lås til vannrett/loddrett fra forrige punkt FØR vi leter etter kanten.
+    // Kant-til-kant-mål (f.eks. avstand mellom to parallelle vegger) skal nesten alltid være 90°.
+    let candX = w.x, candY = w.y;
+    if(fromM && snapEnabled){
+      const fromPx = roomMetersToWorldPx(fromM.x, fromM.y);
+      const ddx = w.x - fromPx.x, ddy = w.y - fromPx.y;
+      if(Math.abs(ddx) >= Math.abs(ddy)) candY = fromPx.y; else candX = fromPx.x;
+    }
+    const edge = findEdgeSnap(candX, candY, EDGE_SNAP_PX);
+    if(edge) return applyAngleCleanup(worldPxToRoomMeters(edge.x, edge.y), fromM);
+
+    // Verken hjørne eller kant: vanlig rutenett-snap, låst til forrige punkts akse.
+    let m = worldPxToRoomMeters(w.x, w.y);
+    m = { x: snap5(m.x), y: snap5(m.y) };
+    if(fromM && snapEnabled){
+      let dx = m.x - fromM.x, dy = m.y - fromM.y;
+      if(Math.abs(dx) >= Math.abs(dy)) dy = 0; else dx = 0;
+      m = { x: fromM.x + dx, y: fromM.y + dy };
+    }
+    return applyAngleCleanup(m, fromM);
+  }
+
+  function dimGeometryPx(d){
+    const p1 = roomMetersToWorldPx(d.x1, d.y1);
+    const p2 = roomMetersToWorldPx(d.x2, d.y2);
+    const dx = p2.x-p1.x, dy = p2.y-p1.y;
+    const len = Math.hypot(dx,dy) || 0.0001;
+    const ux = dx/len, uy = dy/len;
+    const nx = -uy, ny = ux;
+    return { p1, p2, ux, uy, nx, ny, lenPx: len };
+  }
+
+  function buildDimensionGroup(p1, p2, offsetPx, lenM, interactive, dimData){
+    const dx = p2.x-p1.x, dy = p2.y-p1.y;
+    const len = Math.hypot(dx,dy) || 0.0001;
+    const ux = dx/len, uy = dy/len;
+    let nx = -uy, ny = ux;
+    let off = offsetPx;
+    if(Math.abs(off) < 15) off = off < 0 ? -15 : 15;
+
+    const d1 = { x: p1.x + nx*off, y: p1.y + ny*off };
+    const d2 = { x: p2.x + nx*off, y: p2.y + ny*off };
+    const overshoot = Math.sign(off) * 5;
+    const e1 = { x: p1.x + nx*(off+overshoot), y: p1.y + ny*(off+overshoot) };
+    const e2 = { x: p2.x + nx*(off+overshoot), y: p2.y + ny*(off+overshoot) };
+
+    const g = el("g", { class:"measure-group" + (dimData ? "" : " wall-preview") });
+    g.appendChild(el("line", { class:"measure-ext", x1:p1.x, y1:p1.y, x2:e1.x, y2:e1.y }));
+    g.appendChild(el("line", { class:"measure-ext", x1:p2.x, y1:p2.y, x2:e2.x, y2:e2.y }));
+    g.appendChild(el("line", { class:"measure-line", x1:d1.x, y1:d1.y, x2:d2.x, y2:d2.y }));
+
+    const tick = 5;
+    [d1, d2].forEach(pt=>{
+      g.appendChild(el("line", {
+        class:"measure-tick",
+        x1: pt.x - (ux-nx)*tick*0.5, y1: pt.y - (uy-ny)*tick*0.5,
+        x2: pt.x + (ux-nx)*tick*0.5, y2: pt.y + (uy-ny)*tick*0.5
+      }));
+    });
+
+    const mid = { x:(d1.x+d2.x)/2 + nx*12, y:(d1.y+d2.y)/2 + ny*12 };
+    const text = el("text", { class:"measure-text", x:mid.x, y:mid.y });
+    text.textContent = formatLength(lenM);
+    g.appendChild(text);
+
+    if(dimData){
+      g.addEventListener("pointerdown", (e)=>{
+        if(activeTool !== "erase") return;
+        e.stopPropagation();
+        pushUndo();
+        dimensions = dimensions.filter(x => x.id !== dimData.id);
+        renderDimensions();
+      });
+    }
+    return g;
+  }
+
+  function renderDimensions(){
+    while(measureLayer.firstChild) measureLayer.removeChild(measureLayer.firstChild);
+    dimensions.forEach(d => {
+      const g = dimGeometryPx(d);
+      const lenM = Math.hypot(d.x2-d.x1, d.y2-d.y1);
+      const grp = buildDimensionGroup(g.p1, g.p2, d.offset*M, lenM, false, d);
+      measureLayer.appendChild(grp);
+    });
+
+    if(dimState && dimState.p2){
+      const p1 = roomMetersToWorldPx(dimState.p1.x, dimState.p1.y);
+      const p2 = roomMetersToWorldPx(dimState.p2.x, dimState.p2.y);
+      const lenM = Math.hypot(dimState.p2.x-dimState.p1.x, dimState.p2.y-dimState.p1.y);
+      const offPx = dimState.previewOffsetPx || 24;
+      const grp = buildDimensionGroup(p1, p2, offPx, lenM, false, null);
+      measureLayer.appendChild(grp);
+    }
+  }
+
+  function cancelMeasure(){
+    dimState = null;
+    renderDimensions();
+  }
+
+  function measurePointerDown(clientX, clientY){
+    if(!dimState){
+      const p1 = measureSnapPoint(clientX, clientY, null);
+      dimState = { p1, p2:null, phase:"p2" };
+      return;
+    }
+    if(dimState.phase === "p2"){
+      const p2 = measureSnapPoint(clientX, clientY, dimState.p1);
+      if(Math.hypot(p2.x-dimState.p1.x, p2.y-dimState.p1.y) < 0.05){ cancelMeasure(); return; }
+      dimState.p2 = p2;
+      dimState.phase = "offset";
+      return;
+    }
+    if(dimState.phase === "offset"){
+      pushUndo();
+      dimensions.push({
+        id: "dim-" + (dimIdCounter++),
+        x1: dimState.p1.x, y1: dimState.p1.y,
+        x2: dimState.p2.x, y2: dimState.p2.y,
+        offset: (dimState.previewOffsetPx || 24)/M
+      });
+      cancelMeasure();
+      return;
+    }
+  }
+
+  function measurePointerMove(clientX, clientY){
+    if(!dimState) return;
+    if(dimState.phase === "p2"){
+      const p2 = measureSnapPoint(clientX, clientY, dimState.p1);
+      dimState.p2 = p2;
+      renderDimensions();
+      return;
+    }
+    if(dimState.phase === "offset"){
+      const w = toWorldPoint(clientX, clientY);
+      const p1 = roomMetersToWorldPx(dimState.p1.x, dimState.p1.y);
+      const p2 = roomMetersToWorldPx(dimState.p2.x, dimState.p2.y);
+      const dx = p2.x-p1.x, dy = p2.y-p1.y;
+      const len = Math.hypot(dx,dy) || 0.0001;
+      const nx = -dy/len, ny = dx/len;
+      const vx = w.x-p1.x, vy = w.y-p1.y;
+      dimState.previewOffsetPx = vx*nx + vy*ny;
+      renderDimensions();
+    }
+  }
+
+
+  // ---------- Arkitekt-gridlinjer (A/B/C… horisontalt, 1/2/3… vertikalt) ----------
+  // ---------- Arkitekt-gridlinjer (A/B/C… horisontalt, 1/2/3… vertikalt) ----------
+
+  function renderGridLineDims(movingId, posM){
+    while(gridLineDimLayer.firstChild) gridLineDimLayer.removeChild(gridLineDimLayer.firstChild);
+    if(posM == null) return;
+
+    const g = archGridLines.find(x => x.id === movingId) || { axis: gridLineAxis, pos: posM };
+    const axis = g.axis;
+    const dimOffset = 28 / view.k; // avstand ut fra linja, skjermkonstant
+
+    // Finn nærmeste parallelle gridlinje på begge sider, og veggkant
+    const others = archGridLines.filter(x => x.axis === axis && x.id !== movingId)
+      .map(x => x.pos).sort((a,b) => a-b);
+
+    // Veggbounds langs denne aksen
+    let boundA = -Infinity, boundB = Infinity;
+    if(interiorWalls.length > 0){
+      interiorWalls.forEach(w => {
+        const p1 = roomMetersToWorldPx(w.x1,w.y1), p2 = roomMetersToWorldPx(w.x2,w.y2);
+        const half = w.t*M/2;
+        if(axis === "y"){
+          boundA = Math.max(boundA, (Math.min(p1.x,p2.x)-half - originX)/M);
+          boundB = Math.min(boundB, (Math.max(p1.x,p2.x)+half - originX)/M);
+        } else {
+          boundA = Math.max(boundA, (Math.min(p1.y,p2.y)-half - originY)/M);
+          boundB = Math.min(boundB, (Math.max(p1.y,p2.y)+half - originY)/M);
+        }
+      });
+      // Ytre kanter
+      if(axis === "y"){
+        boundA = (originX - originX)/M; // 0
+        boundB = outerW/M;
+      } else {
+        boundA = (originY - originY)/M;
+        boundB = outerH/M;
+      }
+    }
+
+    // Samle alle referanser: veggkanter + andre gridlinjer
+    const refs = [...new Set([boundA, boundB, ...others])].sort((a,b)=>a-b);
+
+    // Finn nærmeste ref på hver side
+    const left  = refs.filter(r => r < posM - 0.001);
+    const right = refs.filter(r => r > posM + 0.001);
+    const refA = left.length  ? left[left.length-1] : null;
+    const refB = right.length ? right[0] : null;
+
+    const pairs = [];
+    if(refA != null) pairs.push({ from: refA, to: posM });
+    if(refB != null) pairs.push({ from: posM, to: refB });
+
+    pairs.forEach(pair => {
+      const lenM = pair.to - pair.from;
+      let p1px, p2px;
+      if(axis === "y"){
+        // Midtpunkt langs tegningens faktiske utstrekning (ikke hardkodet romstørrelse)
+        const midW = roomMetersToWorldPx((g.axis === "y" ? 0 : (pair.from+pair.to)/2), 0);
+        if(g.axis === "y"){
+          const midY = originY + outerH/2;  // midten langs Y-aksen av standardrommet
+          p1px = { x: originX + pair.from*M, y: midY };
+          p2px = { x: originX + pair.to*M,   y: midY };
+        } else {
+          const midX = originX + outerW/2;
+          p1px = { x: midX, y: originY + pair.from*M };
+          p2px = { x: midX, y: originY + pair.to*M };
+        }
+      }
+      const g2 = buildDimensionGroup(p1px, p2px, dimOffset, lenM, false, null);
+      g2.style.opacity = "0.8";
+      gridLineDimLayer.appendChild(g2);
+    });
+  }
+
+  function relabelGridLines(){
+    // Sorter og gi nye navn basert på posisjon langs aksen
+    ["y", "x"].forEach(axis => {
+      const lines = archGridLines
+        .filter(g => g.axis === axis)
+        .sort((a, b) => a.pos - b.pos);
+      lines.forEach((g, i) => {
+        g.label = axis === "y"
+          ? String(i + 1)
+          : (ALPHA[i] || String(i + 1));
+      });
+    });
+  }
+
+  // Beregn boble-posisjon i world-px — fast avstand utenfor veggenes bounding box
+  function gridLineBubblePos(g){
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+    interiorWalls.forEach(w => {
+      const p1 = roomMetersToWorldPx(w.x1,w.y1), p2 = roomMetersToWorldPx(w.x2,w.y2);
+      const half = w.t*M/2;
+      minX=Math.min(minX,p1.x-half,p2.x-half); maxX=Math.max(maxX,p1.x+half,p2.x+half);
+      minY=Math.min(minY,p1.y-half,p2.y-half); maxY=Math.max(maxY,p1.y+half,p2.y+half);
+    });
+    if(!isFinite(minX)){ minX=originX; maxX=originX+outerW; minY=originY; maxY=originY+outerH; }
+    const margin = 48 / view.k;
+    const jog0 = (g.jog0 || 0) / view.k;
+    const jog1 = (g.jog1 || 0) / view.k;
+
+    if(g.axis === "y"){
+      // Vertikal linje — boblen forskyves horisontalt (X), beholder sin Y
+      const px = originX + g.pos*M;
+      return [
+        { x: px + jog0, y: minY - margin,  // boble
+          kinkX: px, jogged: !!g.jog0 },   // knekk-punkt på linjens X, bobles Y
+        { x: px + jog1, y: maxY + margin,
+          kinkX: px, jogged: !!g.jog1 },
+      ];
+    } else {
+      // Horisontal linje — boblen forskyves vertikalt (Y), beholder sin X
+      const py = originY + g.pos*M;
+      return [
+        { x: minX - margin, y: py + jog0,
+          kinkY: py, jogged: !!g.jog0 },
+        { x: maxX + margin, y: py + jog1,
+          kinkY: py, jogged: !!g.jog1 },
+      ];
+    }
+  }
+
+  function renderArchGridLines(){
+    while(gridLineLayer.firstChild) gridLineLayer.removeChild(gridLineLayer.firstChild);
+    const r = 14 / view.k;
+
+    archGridLines.forEach(g => {
+      const isSelected = g.id === selectedGridLineId;
+      const isLocked = !!g.locked;
+      const grp = el("g");
+
+      const bpos = gridLineBubblePos(g);
+
+      // Hovdlinje — alltid rett mellom de to boble-ankerpunktene (linjens faktiske posisjon)
+      let ax1, ay1, ax2, ay2;
+      if(g.axis === "y"){
+        const px = originX + g.pos*M;
+        ax1 = px; ay1 = bpos[0].y;
+        ax2 = px; ay2 = bpos[1].y;
+      } else {
+        const py = originY + g.pos*M;
+        ax1 = bpos[0].x; ay1 = py;
+        ax2 = bpos[1].x; ay2 = py;
+      }
+      const lineEl = el("line", { x1:ax1, y1:ay1, x2:ax2, y2:ay2,
+        class:"gl-line"+(isSelected?" gl-selected":"")+(isLocked?" gl-locked":"") });
+      lineEl.style.strokeWidth = (1.2/view.k);
+      grp.appendChild(lineEl);
+
+      // Klikk-flate langs hovdlinjen
+      const hitLine = el("line", { x1:ax1, y1:ay1, x2:ax2, y2:ay2,
+        stroke:"transparent", "stroke-width": 28/view.k });
+      hitLine.style.cursor = isLocked ? "not-allowed" : "grab";
+      attachGridLineBodyHandler(hitLine, g);
+      grp.appendChild(hitLine);
+
+      // Bobler i begge ender + kne-hals + lås-ikon
+      bpos.forEach((bp, bIdx) => {
+        const bubClass = "gl-bubble"+(isSelected?" gl-selected":"")+(isLocked?" gl-locked":"");
+        const bgrp = el("g", { class:bubClass });
+
+        // Kne-hals: kort L fra linjens slutt til boble
+        if(bp.jogged){
+          let neckD;
+          if(g.axis === "y"){
+            // Vertikal linje — hals: rett ned til bobles Y, så sidelengs til boble
+            neckD = `M${bp.kinkX},${bp.y} L${bp.x},${bp.y}`;
+          } else {
+            // Horisontal linje — hals: rett bort til bobles X, så ned/opp til boble
+            neckD = `M${bp.x},${bp.kinkY} L${bp.x},${bp.y}`;
+          }
+          const neckEl = el("path", { d:neckD, fill:"none",
+            class:"gl-line"+(isLocked?" gl-locked":"") });
+          neckEl.style.strokeWidth = (1.2/view.k);
+          neckEl.style.strokeDasharray = "none";
+          grp.appendChild(neckEl);
+        }
+
+        const circ = el("circle", { cx:bp.x, cy:bp.y, r });
+        circ.style.strokeWidth = (1.8/view.k);
+        bgrp.appendChild(circ);
+        const txt = el("text", { x:bp.x, y:bp.y, "text-anchor":"middle", "dominant-baseline":"middle" });
+        txt.textContent = g.label;
+        txt.style.fontSize = (13/view.k)+"px";
+        txt.style.fontFamily = "var(--mono)";
+        txt.style.fontWeight = "600";
+        txt.style.pointerEvents = "none";
+        bgrp.appendChild(txt);
+
+        // Lås-ikon ved første boble
+        if(bIdx === 0){
+          const lkSize = 10/view.k;
+          const lkX = bp.x + r*0.85, lkY = bp.y - r*0.85;
+          const lkGrp = el("g", { class:"gl-lock"+(isLocked?" locked":"") });
+          const lkRect = el("rect", { x:lkX-lkSize/2, y:lkY-lkSize/2, width:lkSize, height:lkSize, rx:lkSize*0.25 });
+          lkRect.style.strokeWidth = (1.2/view.k);
+          lkGrp.appendChild(lkRect);
+          const lkTxt = el("text", { x:lkX, y:lkY, "text-anchor":"middle", "dominant-baseline":"middle" });
+          lkTxt.textContent = isLocked ? "🔒" : "🔓";
+          lkTxt.style.fontSize = (9/view.k)+"px";
+          lkTxt.style.pointerEvents = "none";
+          lkGrp.appendChild(lkTxt);
+          lkGrp.addEventListener("pointerdown", (e)=>{
+            e.stopPropagation();
+            pushUndo();
+            g.locked = !g.locked;
+            renderArchGridLines();
+          });
+          bgrp.appendChild(lkGrp);
+        }
+
+        // Dra boblen for å lage/fjerne kne (jog)
+        if(!isLocked && activeTool === "gridline"){
+          bgrp.style.cursor = "ew-resize";
+          bgrp.addEventListener("pointerdown", (e)=>{
+            e.stopPropagation();
+            pushUndo();
+            stage.setPointerCapture(e.pointerId);
+            const jogKey  = bIdx === 0 ? "jog0" : "jog1";
+            const otherKey = bIdx === 0 ? "jog1" : "jog0";
+            const onMove = (ev)=>{
+              const w2 = toWorldPoint(ev.clientX, ev.clientY);
+              const raw = g.axis === "y"
+                ? (w2.x - (originX + g.pos*M)) * view.k
+                : (w2.y - (originY + g.pos*M)) * view.k;
+              const val = Math.abs(raw) < 8 ? 0 : raw;
+              g[jogKey] = val;
+              // Begge følger med som standard; hold Alt for å flytte kun én
+              if(!ev.altKey) g[otherKey] = val;
+              renderArchGridLines();
+            };
+            const onUp = (ev)=>{
+              stage.releasePointerCapture(ev.pointerId);
+              stage.removeEventListener("pointermove", onMove);
+              stage.removeEventListener("pointerup", onUp);
+            };
+            stage.addEventListener("pointermove", onMove);
+            stage.addEventListener("pointerup", onUp);
+          });
+        }
+
+        attachGridLineBubbleHandler(bgrp, g);
+        grp.appendChild(bgrp);
+      });
+
+      gridLineLayer.appendChild(grp);
+    });
+  }
+
+  function attachGridLineBodyHandler(hitEl, g){
+    hitEl.addEventListener("pointerdown", (e)=>{
+      if(activeTool !== "gridline" && activeTool !== "erase") return;
+      e.stopPropagation();
+      if(activeTool === "erase"){
+        if(g.locked){ showSpaceHint(e.clientX, e.clientY, "GRIDLINJE ER LÅST"); return; }
+        pushUndo();
+        archGridLines = archGridLines.filter(x => x.id !== g.id);
+        if(selectedGridLineId === g.id) selectedGridLineId = null;
+        relabelGridLines();
+        renderArchGridLines();
+        return;
+      }
+      if(g.locked){ selectedGridLineId = g.id; renderArchGridLines(); return; }
+      pushUndo();
+      selectedGridLineId = g.id;
+      renderArchGridLines();
+      stage.setPointerCapture(e.pointerId);
+      stage.style.cursor = "grabbing";
+
+      const onMove = (ev)=>{
+        const w = toWorldPoint(ev.clientX, ev.clientY);
+        const m = worldPxToRoomMeters(w.x, w.y);
+        const gl = archGridLines.find(x => x.id === g.id);
+        if(!gl) return;
+        gl.pos = snap5(gl.axis === "y" ? m.x : m.y);
+        relabelGridLines();
+        renderArchGridLines();
+        renderGridLineDims(g.id, gl.pos);
+      };
+      const onUp = (ev)=>{
+        stage.style.cursor = "";
+        stage.releasePointerCapture(ev.pointerId);
+        stage.removeEventListener("pointermove", onMove);
+        stage.removeEventListener("pointerup", onUp);
+        renderGridLineDims(null, null);
+      };
+      stage.addEventListener("pointermove", onMove);
+      stage.addEventListener("pointerup", onUp);
+    });
+  }
+
+  function attachGridLineBubbleHandler(bgrp, g){
+    bgrp.addEventListener("pointerdown", (e)=>{
+      e.stopPropagation();
+      if(activeTool === "erase"){
+        if(g.locked){ showSpaceHint(e.clientX, e.clientY, "GRIDLINJE ER LÅST"); return; }
+        pushUndo();
+        archGridLines = archGridLines.filter(x => x.id !== g.id);
+        if(selectedGridLineId === g.id) selectedGridLineId = null;
+        relabelGridLines();
+        renderArchGridLines();
+        return;
+      }
+      if(activeTool === "gridline"){
+        selectedGridLineId = selectedGridLineId === g.id ? null : g.id;
+        renderArchGridLines();
+      }
+    });
+  }
+
+  // ---------- Gridlinje-retningsvalg ----------
+  let gridLineAxis = "y"; // "y" = vertikal (tall), "x" = horisontal (bokstav)
+  const glAxisVertical = document.getElementById("glAxisVertical");
+  const glAxisHorizontal = document.getElementById("glAxisHorizontal");
+
+  function setGridLineAxis(axis){
+    gridLineAxis = axis;
+    glAxisVertical.classList.toggle("active", axis === "y");
+    glAxisHorizontal.classList.toggle("active", axis === "x");
+  }
+  glAxisVertical.addEventListener("click", ()=> setGridLineAxis("y"));
+  glAxisHorizontal.addEventListener("click", ()=> setGridLineAxis("x"));
+
+  function tryCreateGridLine(clientX, clientY){
+    const w = toWorldPoint(clientX, clientY);
+    const m = worldPxToRoomMeters(w.x, w.y);
+    const axis = gridLineAxis;
+    pushUndo();
+    archGridLines.push({
+      id: "gl-" + (archGridIdCounter++),
+      axis,
+      pos: snap5(axis === "y" ? m.x : m.y),
+      label: "?"  // foreløpig, relabelGridLines setter riktig navn
+    });
+    relabelGridLines();
+    renderArchGridLines();
+  }
+
+  let undoStack = [];
+  let redoStack = [];
+  const UNDO_LIMIT = 50;
+
+  function snapshotState(){
+    return {
+      interiorWalls: JSON.parse(JSON.stringify(interiorWalls)),
+      openings: JSON.parse(JSON.stringify(openings)),
+      spaces: JSON.parse(JSON.stringify(spaces)),
+      dimensions: JSON.parse(JSON.stringify(dimensions)),
+      archGridLines: JSON.parse(JSON.stringify(archGridLines)),
+    };
+  }
+
+  function pushUndo(){
+    undoStack.push(snapshotState());
+    if(undoStack.length > UNDO_LIMIT) undoStack.shift();
+    redoStack = []; // en ny handling gjør den gamle "gjør om"-historikken ugyldig
+  }
+
+  function restoreSnapshot(s){
+    interiorWalls = s.interiorWalls;
+    openings = s.openings;
+    spaces = s.spaces;
+    dimensions = s.dimensions || [];
+    archGridLines = s.archGridLines || [];
+    selectedWallId = null;
+    hoveredWallId = null;
+    selectedOpeningId = null;
+    if(typeof selectedObject !== "undefined") selectedObject = null;
+    closeNameInput(false);
+    renderInteriorWalls();
+    renderDimensions();
+    renderOpenings();
+    renderArchGridLines();
+    if(typeof renderSelectionRing === "function") renderSelectionRing();
+    recomputeSpaces();
+  }
+
+  function undo(){
+    if(undoStack.length === 0) return;
+    redoStack.push(snapshotState());
+    restoreSnapshot(undoStack.pop());
+  }
+
+  function redo(){
+    if(redoStack.length === 0) return;
+    undoStack.push(snapshotState());
+    restoreSnapshot(redoStack.pop());
+  }
+
+  window.addEventListener("keydown", (e)=>{
+    const tag = document.activeElement && document.activeElement.tagName;
+    if(tag === "INPUT") return; // la nettleserens egen tekst-angre virke i inputfelt
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z"){
+      e.preventDefault();
+      if(e.shiftKey) redo(); else undo();
+    }
+    if((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y"){
+      e.preventDefault();
+      redo();
+    }
+  });
+
+  document.getElementById("btnUndo").addEventListener("click", ()=> undo());
+  document.getElementById("btnRedo").addEventListener("click", ()=> redo());
+
+  // ---------- Lagre / åpne (JSON) ----------
+  function exportState(){
+    const data = {
+      version: 1,
+      interiorWalls, openings, spaces, dimensions, archGridLines,
+      idCounter, openingIdCounter, spaceIdCounter, dimIdCounter, archGridIdCounter
+    };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type:"application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const stamp = new Date().toISOString().slice(0,10);
+    a.download = "drawplan_" + stamp + ".json";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importStateFromFile(file){
+    const reader = new FileReader();
+    reader.onload = (e)=>{
+      let data;
+      try{ data = JSON.parse(e.target.result); }
+      catch(err){ showSpaceHint(vb.w/2, vb.h/2, "KUNNE IKKE LESE FILEN"); return; }
+      pushUndo();
+      interiorWalls = Array.isArray(data.interiorWalls) ? data.interiorWalls : [];
+      openings = Array.isArray(data.openings) ? data.openings : [];
+      spaces = Array.isArray(data.spaces) ? data.spaces : [];
+      dimensions = Array.isArray(data.dimensions) ? data.dimensions : [];
+      archGridLines = Array.isArray(data.archGridLines) ? data.archGridLines : [];
+      idCounter = data.idCounter || (interiorWalls.length + 1);
+      openingIdCounter = data.openingIdCounter || (openings.length + 1);
+      spaceIdCounter = data.spaceIdCounter || (spaces.length + 1);
+      dimIdCounter = data.dimIdCounter || (dimensions.length + 1);
+      archGridIdCounter = data.archGridIdCounter || (archGridLines.length + 1);
+      selectedWallId = null;
+      hoveredWallId = null;
+      renderInteriorWalls();
+      renderDimensions();
+      renderArchGridLines();
+      recomputeSpaces();
+    };
+    reader.readAsText(file);
+  }
+
+  document.getElementById("btnSave").addEventListener("click", exportState);
+  const fileInput = document.getElementById("fileInput");
+  document.getElementById("btnLoad").addEventListener("click", ()=> fileInput.click());
+  fileInput.addEventListener("change", (e)=>{
+    const file = e.target.files && e.target.files[0];
+    if(file) importStateFromFile(file);
+    fileInput.value = "";
+  });
+
+  // ---------- Eksporter som PNG ----------
+  function getResolvedThemeVars(){
+    const cs = getComputedStyle(document.body);
+    const names = ["--bg","--bg-vignette","--surface","--surface-border","--line","--line-strong",
+      "--wall-drafting","--wall-polish-a","--wall-polish-b","--floor-polish-a","--floor-polish-b",
+      "--accent","--accent-soft","--sun","--danger","--danger-soft","--text","--text-dim","--text-faint",
+      "--overlay-1","--overlay-2","--overlay-3","--mono","--sans"];
+    let css = ":root{";
+    names.forEach(n => { css += n + ":" + cs.getPropertyValue(n).trim() + ";"; });
+    css += "}";
+    return css;
+  }
+
+  function exportPNG(){
+    const bounds = computeContentBoundsPx();
+    const widthPx = bounds.maxX - bounds.minX;
+    const heightPx = bounds.maxY - bounds.minY;
+
+    const clone = stage.cloneNode(true);
+    clone.setAttribute("viewBox", `${bounds.minX} ${bounds.minY} ${widthPx} ${heightPx}`);
+    clone.setAttribute("width", widthPx);
+    clone.setAttribute("height", heightPx);
+    const cloneWorld = clone.querySelector("#world");
+    if(cloneWorld) cloneWorld.style.transform = "none";
+
+    // Bak inn beregnede farger direkte i hvert element i klonen.
+    // CSS-variabler (var(--...)) løses IKKE opp av <img>-elementet som brukes til rasterisering —
+    // det har ikke tilgang til dokumentets CSS-context. Vi må derfor hente de beregnede verdiene
+    // fra det levende DOM-et og skrive dem som inline attributter på klonen.
+    const liveEls = Array.from(stage.querySelectorAll("*"));
+    const cloneEls = Array.from(clone.querySelectorAll("*"));
+    const props = ["fill","stroke","stroke-width","stroke-opacity","fill-opacity","opacity",
+      "stroke-dasharray","font-family","font-size","font-weight","text-anchor","dominant-baseline"];
+    liveEls.forEach((live, i) => {
+      const ce = cloneEls[i];
+      if(!ce) return;
+      const cs = getComputedStyle(live);
+      props.forEach(p => {
+        const v = cs.getPropertyValue(p);
+        if(v && v !== "none" && v !== "") ce.setAttribute(p, v);
+      });
+    });
+
+    // Bakgrunnsfarge løses opp og skrives inn som et solid rektangel i topp av klonen.
+    const bgColor = getComputedStyle(document.body).getPropertyValue("--bg").trim();
+    const bgRect = document.createElementNS(svgns, "rect");
+    bgRect.setAttribute("x", bounds.minX); bgRect.setAttribute("y", bounds.minY);
+    bgRect.setAttribute("width", widthPx); bgRect.setAttribute("height", heightPx);
+    bgRect.setAttribute("fill", bgColor);
+    const cloneWorldRef = clone.querySelector("#world");
+    clone.insertBefore(bgRect, cloneWorldRef);
+
+    const svgData = new XMLSerializer().serializeToString(clone);
+    const svgBlob = new Blob([svgData], { type:"image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(svgBlob);
+    const img = new Image();
+    img.onload = ()=>{
+      const scale = 2;
+      const canvas = document.createElement("canvas");
+      canvas.width = widthPx*scale; canvas.height = heightPx*scale;
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+      ctx.drawImage(img, 0, 0, widthPx, heightPx);
+      URL.revokeObjectURL(url);
+      canvas.toBlob((blob)=>{
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "drawplan.png";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      });
+    };
+    img.onerror = (e)=>{
+      URL.revokeObjectURL(url);
+      showSpaceHint(vb.w/2, vb.h/2, "EKSPORT FEILET");
+      console.error("PNG eksport feil:", e);
+    };
+    img.src = url;
+  }
+  document.getElementById("btnExport").addEventListener("click", exportPNG);
+
+  // ---------- Eksporter som vektor-PDF (1:1 skala) ----------
+  function computeContentBoundsPx(){
+    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity, any=false;
+    interiorWalls.forEach(w => {
+      const pad = (w.t*M/2) + 5;
+      [[w.x1,w.y1],[w.x2,w.y2]].forEach(([mx,my]) => {
+        const p = roomMetersToWorldPx(mx,my);
+        if(p.x-pad<minX) minX=p.x-pad; if(p.x+pad>maxX) maxX=p.x+pad;
+        if(p.y-pad<minY) minY=p.y-pad; if(p.y+pad>maxY) maxY=p.y+pad;
+        any = true;
+      });
+    });
+    if(!any){ return { minX:0, minY:0, maxX:vb.w, maxY:vb.h }; }
+    const marginPx = 0.6*M; // luft til romnavn, mål og skjøter
+    return { minX:minX-marginPx, minY:minY-marginPx, maxX:maxX+marginPx, maxY:maxY+marginPx };
+  }
+
+  function exportPDF(){
+    if(!window.jspdf || !window.jspdf.jsPDF){
+      showSpaceHint(vb.w/2, vb.h/2, "PDF-BIBLIOTEK IKKE LASTET (KREVER INTERNETT)");
+      return;
+    }
+    const bounds = computeContentBoundsPx();
+    const widthPx = bounds.maxX - bounds.minX;
+    const heightPx = bounds.maxY - bounds.minY;
+    const mmPerPx = 1000/M; // 1:1 skala — 1 verdens-px tilsvarer (1000/M) virkelige mm
+
+    const clone = stage.cloneNode(true);
+    clone.setAttribute("viewBox", `${bounds.minX} ${bounds.minY} ${widthPx} ${heightPx}`);
+    clone.setAttribute("width", widthPx);
+    clone.setAttribute("height", heightPx);
+    const cloneWorld = clone.querySelector("#world");
+    if(cloneWorld) cloneWorld.style.transform = "none";
+
+    // Bak inn beregnede stiler direkte som attributter — garanterer riktige farger i PDF-en
+    // uavhengig av om PDF-motoren tolker CSS-klasser/variabler.
+    const liveEls = stage.querySelectorAll("*");
+    const cloneEls = clone.querySelectorAll("*");
+    const props = ["fill","stroke","stroke-width","stroke-opacity","fill-opacity","opacity",
+      "stroke-dasharray","font-family","font-size","font-weight","text-anchor"];
+    for(let i=0; i<liveEls.length; i++){
+      const cs = getComputedStyle(liveEls[i]);
+      const ce = cloneEls[i];
+      if(!ce) continue;
+      props.forEach(p => { const v = cs.getPropertyValue(p); if(v) ce.style.setProperty(p, v); });
+    }
+    const rootCs = getComputedStyle(stage);
+    props.forEach(p => { const v = rootCs.getPropertyValue(p); if(v) clone.style.setProperty(p, v); });
+
+    const pageStyle = document.querySelector("style").textContent;
+    const styleEl = document.createElementNS(svgns, "style");
+    styleEl.textContent = getResolvedThemeVars() + "\n" + pageStyle;
+    clone.insertBefore(styleEl, clone.firstChild);
+
+    clone.style.position = "fixed";
+    clone.style.left = "-99999px";
+    clone.style.top = "0";
+    document.body.appendChild(clone);
+
+    const widthMM = widthPx*mmPerPx, heightMM = heightPx*mmPerPx;
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+      orientation: widthMM > heightMM ? "landscape" : "portrait",
+      unit: "mm",
+      format: [widthMM, heightMM]
+    });
+
+    doc.svg(clone, { x:0, y:0, width:widthMM, height:heightMM }).then(()=>{
+      document.body.removeChild(clone);
+      doc.save("drawplan_1-1_skala.pdf");
+    }).catch((err)=>{
+      document.body.removeChild(clone);
+      console.error(err);
+      showSpaceHint(vb.w/2, vb.h/2, "PDF-EKSPORT FEILET");
+    });
+  }
+  document.getElementById("btnExportPDF").addEventListener("click", exportPDF);
+
+
+  // ---------- Tegning ----------
+  let drawState = null;   // { startM:{x,y} }
+  let previewWall = null;
+  let lastPointerClient = { x:0, y:0 };
+  const VERTEX_SNAP_PX = 15;  // hjørne — større fangstradius, siden det er høyest prioritet
+  const EDGE_SNAP_PX = 9;     // kant/overflate
+  const drawLengthOverlay = document.getElementById("drawLengthOverlay");
+  const drawLengthInput = document.getElementById("drawLengthInput");
+  const drawLengthUnitLabel = document.getElementById("drawLengthUnitLabel");
+
+  function snap5(v){ return snapEnabled ? Math.round(v/0.05)*0.05 : v; }
+
+  // Magnetisk snap til nærmeste eksisterende veggendepunkt (hjørne), innenfor toleranse.
+  function findNearbyVertex(px, py, tolerancePx, excludeWallId){
+    if(!snapEnabled) return null;
+    let best = null, bestDist = tolerancePx;
+    interiorWalls.forEach(w => {
+      if(w.id === excludeWallId) return;
+      const p1 = roomMetersToWorldPx(w.x1, w.y1);
+      const p2 = roomMetersToWorldPx(w.x2, w.y2);
+      const dx = p2.x-p1.x, dy = p2.y-p1.y;
+      const len = Math.hypot(dx,dy) || 0.0001;
+      const ux = dx/len, uy = dy/len;
+      const nx = -uy, ny = ux;
+      const half = w.t*M/2;
+      // Veggen TEGNES med endene forlenget en halv tykkelse langs lengderetningen
+      // (se wallPolygonPoints) — hjørne-kandidatene må matche det, ikke senterlinjens rå endepunkt.
+      const a = { x: p1.x - ux*half, y: p1.y - uy*half };
+      const b = { x: p2.x + ux*half, y: p2.y + uy*half };
+      const candidates = [
+        p1, p2,                                                    // senterlinjens endepunkter
+        { x:a.x+nx*half, y:a.y+ny*half }, { x:a.x-nx*half, y:a.y-ny*half },  // faktiske hjørner ved p1 (ytter/inner)
+        { x:b.x+nx*half, y:b.y+ny*half }, { x:b.x-nx*half, y:b.y-ny*half },  // faktiske hjørner ved p2 (ytter/inner)
+      ];
+      candidates.forEach(p => {
+        const d = Math.hypot(p.x-px, p.y-py);
+        if(d < bestDist){ bestDist = d; best = { x:p.x, y:p.y }; }
+      });
+    });
+    return best;
+  }
+
+  // Snap til nærmeste punkt langs en veggs ytterkant, senterlinje eller innerkant, utenom selve hjørnene.
+  function findEdgeSnap(px, py, tolerancePx, excludeWallId){
+    if(!snapEnabled) return null;
+    let best = null, bestDist = tolerancePx;
+    interiorWalls.forEach(w => {
+      if(w.id === excludeWallId) return;
+      const p1 = roomMetersToWorldPx(w.x1, w.y1);
+      const p2 = roomMetersToWorldPx(w.x2, w.y2);
+      const dx = p2.x-p1.x, dy = p2.y-p1.y;
+      const len = Math.hypot(dx,dy) || 0.0001;
+      const ux = dx/len, uy = dy/len;
+      const nx = -uy, ny = ux;
+      const half = w.t*M/2;
+      [0, half, -half].forEach(offset => {  // senter, ytterkant, innerkant
+        const ox1 = p1.x + nx*offset, oy1 = p1.y + ny*offset;
+        const vx = px-ox1, vy = py-oy1;
+        let s = vx*ux + vy*uy;
+        if(s < 6 || s > len-6) return; // for nærme et hjørne — dekkes allerede av vertex-snap
+        const projX = ox1 + ux*s, projY = oy1 + uy*s;
+        const d = Math.hypot(px-projX, py-projY);
+        if(d < bestDist){ bestDist = d; best = { x:projX, y:projY }; }
+      });
+    });
+    return best;
+  }
+
+  // Finner hvilken type snap (Solibri-stil) som gjelder på et gitt punkt, til visning av markør.
+  function resolveSnapMarker(px, py){
+    if(!snapEnabled) return null;
+    const vertex = findNearbyVertex(px, py, VERTEX_SNAP_PX);
+    if(vertex) return { x:vertex.x, y:vertex.y, type:"vertex" };
+    const faceLine = findAnchorWallAt(px, py);
+    if(faceLine) return { x:px, y:py, type:"face" };
+    const edge = findEdgeSnap(px, py, EDGE_SNAP_PX);
+    if(edge) return { x:edge.x, y:edge.y, type:"edge" };
+    return null;
+  }
+
+  function renderSnapMarker(pt){
+    while(snapMarkerLayer.firstChild) snapMarkerLayer.removeChild(snapMarkerLayer.firstChild);
+    if(!pt) return;
+    const s = 20/view.k; // skjermkonstant størrelse — krymper ikke ved utzooming (stroke er alt konstant via vector-effect)
+    let shape;
+    if(pt.type === "vertex"){
+      shape = el("rect", { x:pt.x-s/2, y:pt.y-s/2, width:s, height:s, class:"snap-marker snap-marker-vertex" });
+    } else if(pt.type === "edge"){
+      const h = s*1.15;
+      const pts = `${pt.x},${pt.y-h*0.6} ${pt.x-h*0.6},${pt.y+h*0.45} ${pt.x+h*0.6},${pt.y+h*0.45}`;
+      shape = el("polygon", { points:pts, class:"snap-marker snap-marker-edge" });
+    } else {
+      shape = el("circle", { cx:pt.x, cy:pt.y, r:s*0.6, class:"snap-marker snap-marker-face" });
+    }
+    snapMarkerLayer.appendChild(shape);
+  }
+
+  const btnSnap = document.getElementById("btnSnap");
+  btnSnap.addEventListener("click", ()=>{
+    snapEnabled = !snapEnabled;
+    btnSnap.classList.toggle("active", snapEnabled);
+  });
+
+  // ---------- Rutenett (Blender-stil, adaptivt) ----------
+  const btnGrid = document.getElementById("btnGrid");
+  btnGrid.addEventListener("click", ()=>{
+    gridEnabled = !gridEnabled;
+    btnGrid.classList.toggle("active", gridEnabled);
+    renderGrid();
+  });
+
+  // ---------- Måleenhet (mm / cm / m / imperial) ----------
+  let displayUnit = "mm";
+  const M_PER_FOOT = 0.3048;
+  const M_PER_INCH = 0.0254;
+
+  function metersToImperialParts(meters){
+    const totalInches = meters / M_PER_INCH;
+    let feet = Math.floor(totalInches/12 + 1e-9);
+    let inches = totalInches - feet*12;
+    let eighths = Math.round(inches*8);
+    if(eighths >= 96){ feet += 1; eighths -= 96; }
+    const wholeInches = Math.floor(eighths/8);
+    const remEighths = eighths % 8;
+    return { feet, wholeInches, remEighths };
+  }
+  function fracString(remEighths){
+    if(remEighths === 0) return "";
+    const g = (a,b) => b ? g(b, a%b) : a;
+    const div = g(remEighths, 8);
+    return " " + (remEighths/div) + "/" + (8/div);
+  }
+
+  function formatLength(meters){
+    const sign = meters < -0.001 ? "-" : "";
+    const val = Math.abs(meters);
+    if(displayUnit === "mm") return sign + Math.round(val*1000) + " MM";
+    if(displayUnit === "cm") return sign + (val*100).toFixed(1).replace(".", ",") + " CM";
+    if(displayUnit === "imperial"){
+      const p = metersToImperialParts(val);
+      return sign + p.feet + "'-" + p.wholeInches + fracString(p.remEighths) + '"';
+    }
+    return sign + val.toFixed(2).replace(".", ",") + " M";
+  }
+
+  function parseLength(str){
+    if(!str) return NaN;
+    const s = str.trim();
+    if(displayUnit === "imperial"){
+      if(s.includes("'")){
+        const parts = s.split("'");
+        const feet = parseFloat(parts[0].replace(",", ".")) || 0;
+        const inchesPart = (parts[1]||"").replace('"', "").replace("-", " ").trim();
+        const inches = parseFloat(inchesPart.replace(",", ".")) || 0;
+        return feet*M_PER_FOOT + inches*M_PER_INCH;
+      }
+      const ft = parseFloat(s.replace(",", "."));
+      return Number.isNaN(ft) ? NaN : ft*M_PER_FOOT;
+    }
+    const num = parseFloat(s.replace(",", "."));
+    if(Number.isNaN(num)) return NaN;
+    if(displayUnit === "mm") return num/1000;
+    if(displayUnit === "cm") return num/100;
+    return num;
+  }
+
+  const unitSelect = document.getElementById("unitSelect");
+  unitSelect.addEventListener("change", ()=>{
+    displayUnit = unitSelect.value;
+    renderDimensions();
+    renderSpaces();
+    if(activeTool === "edit" && selectedWallId) syncLengthInput();
+    if(activeTool === "draw" && drawState) updatePreview(lastPointerClient.x, lastPointerClient.y, false);
+  });
+
+  function computeEndpoint(clientX, clientY, altFree){
+    const w = toWorldPoint(clientX, clientY);
+    const freeAngle = altFree || !snapEnabled;
+
+    if(snapEnabled && !drawState.anchorResolved){
+      const rdx = w.x - drawState.rawStartPx.x;
+      const rdy = w.y - drawState.rawStartPx.y;
+      if(Math.hypot(rdx, rdy) > 2){
+        let dirx, diry;
+        if(!freeAngle){
+          if(Math.abs(rdx) >= Math.abs(rdy)){ dirx = rdx >= 0 ? 1 : -1; diry = 0; }
+          else { dirx = 0; diry = rdy >= 0 ? 1 : -1; }
+        } else {
+          const rlen = Math.hypot(rdx, rdy) || 1;
+          dirx = rdx/rlen; diry = rdy/rlen;
+        }
+        const anchor = findAnchorWallAt(drawState.rawStartPx.x, drawState.rawStartPx.y);
+        if(anchor){
+          const exit = rayExitPoint(anchor, drawState.rawStartPx.x, drawState.rawStartPx.y, dirx, diry);
+          if(exit){
+            const em = worldPxToRoomMeters(exit.x, exit.y);
+            drawState.startM = { x: snap5(em.x), y: snap5(em.y) };
+          }
+        }
+        drawState.anchorResolved = true;
+      }
+    } else if(!drawState.anchorResolved){
+      drawState.anchorResolved = true;
+    }
+
+    const m = worldPxToRoomMeters(w.x, w.y);
+    let dx = m.x - drawState.startM.x;
+    let dy = m.y - drawState.startM.y;
+    if(!freeAngle){
+      if(Math.abs(dx) >= Math.abs(dy)) dy = 0; else dx = 0;
+    }
+    let ex = drawState.startM.x + dx;
+    let ey = drawState.startM.y + dy;
+    ex = snap5(ex); ey = snap5(ey);
+
+    const candidatePx = roomMetersToWorldPx(ex, ey);
+    const vertex = findNearbyVertex(candidatePx.x, candidatePx.y, VERTEX_SNAP_PX);
+    if(vertex){
+      const vm = worldPxToRoomMeters(vertex.x, vertex.y);
+      ex = vm.x; ey = vm.y;
+    } else {
+      const edge = findEdgeSnap(candidatePx.x, candidatePx.y, EDGE_SNAP_PX);
+      if(edge){
+        const emv = worldPxToRoomMeters(edge.x, edge.y);
+        ex = emv.x; ey = emv.y;
+      }
+    }
+    return { x: ex, y: ey };
+  }
+
+  function startDrawing(e){
+    const w = toWorldPoint(e.clientX, e.clientY);
+    const vertex = findNearbyVertex(w.x, w.y, VERTEX_SNAP_PX);
+    const edge = !vertex ? findEdgeSnap(w.x, w.y, EDGE_SNAP_PX) : null;
+    const special = vertex || edge;
+    const m = worldPxToRoomMeters(special ? special.x : w.x, special ? special.y : w.y);
+    drawState = {
+      startM: { x: special ? m.x : snap5(m.x), y: special ? m.y : snap5(m.y) },
+      rawStartPx: special ? special : w,
+      anchorResolved: false
+    };
+    if(!chainMode) stage.setPointerCapture(e.pointerId);
+    drawLengthUserEdited = false;
+    updatePreview(e.clientX, e.clientY, e.altKey);
+    requestAnimationFrame(()=> drawLengthInput.focus());
+  }
+
+  let lastComputedEnd = null;
+  let drawLengthUserEdited = false;
+  let suppressLengthInputEvent = false;
+
+  function setDrawLengthValue(text){
+    suppressLengthInputEvent = true;
+    drawLengthInput.value = text;
+  }
+
+  // ---------- Tracking lines ----------
+  const TRACK_SNAP_PX = 6; // skjerm-px — innenfor dette snapper enden til tracking-linja
+
+  function getAllVerticesPx(){
+    const pts = [];
+    interiorWalls.forEach(w => {
+      if(w.id === "__preview__") return;
+      const p1 = roomMetersToWorldPx(w.x1, w.y1);
+      const p2 = roomMetersToWorldPx(w.x2, w.y2);
+      const dx = p2.x-p1.x, dy = p2.y-p1.y;
+      const len = Math.hypot(dx,dy)||0.0001;
+      const ux = dx/len, uy = dy/len;
+      const half = w.t*M/2;
+      // Senterlinje-endepunkter og faktiske ytterhjørner
+      [p1, p2,
+       {x:p1.x-ux*half+(-uy)*half, y:p1.y-uy*half+ux*half},
+       {x:p1.x-ux*half-(-uy)*half, y:p1.y-uy*half-ux*half},
+       {x:p2.x+ux*half+(-uy)*half, y:p2.y+uy*half+ux*half},
+       {x:p2.x+ux*half-(-uy)*half, y:p2.y+uy*half-ux*half},
+      ].forEach(p => pts.push(p));
+    });
+    return pts;
+  }
+
+  function renderTrackingLines(startM, endM){
+    while(trackingLayer.firstChild) trackingLayer.removeChild(trackingLayer.firstChild);
+    if(!snapEnabled) return;
+
+    const startPx = roomMetersToWorldPx(startM.x, startM.y);
+    const endPx   = roomMetersToWorldPx(endM.x, endM.y);
+    const verts   = getAllVerticesPx();
+    const extent  = 1200 / view.k; // strekker seg langt ut
+    const tol     = TRACK_SNAP_PX / view.k;
+
+    verts.forEach(v => {
+      // Horisontal tracking line fra vertex v
+      const dyEnd  = Math.abs(endPx.y - v.y);
+      if(dyEnd < tol){
+        // Tegn horisontal linje gjennom v.y, fra v.x til litt forbi endPx.x
+        const x0 = Math.min(v.x, endPx.x) - 20/view.k;
+        const x1 = Math.max(v.x, endPx.x) + 20/view.k;
+        trackingLayer.appendChild(el("line", { x1:x0, y1:v.y, x2:x1, y2:v.y, class:"tracking-line" }));
+        trackingLayer.appendChild(el("circle", { cx:v.x, cy:v.y, r:3/view.k, class:"tracking-dot" }));
+      }
+      // Vertikal tracking line fra vertex v
+      const dxEnd  = Math.abs(endPx.x - v.x);
+      if(dxEnd < tol){
+        const y0 = Math.min(v.y, endPx.y) - 20/view.k;
+        const y1 = Math.max(v.y, endPx.y) + 20/view.k;
+        trackingLayer.appendChild(el("line", { x1:v.x, y1:y0, x2:v.x, y2:y1, class:"tracking-line" }));
+        trackingLayer.appendChild(el("circle", { cx:v.x, cy:v.y, r:3/view.k, class:"tracking-dot" }));
+      }
+    });
+  }
+
+  function clearTrackingLines(){
+    while(trackingLayer.firstChild) trackingLayer.removeChild(trackingLayer.firstChild);
+  }
+
+  function updatePreview(clientX, clientY, altFree){
+    if(!drawState) return;
+    lastPointerClient = { x: clientX, y: clientY };
+    const end = computeEndpoint(clientX, clientY, altFree);
+    lastComputedEnd = end;
+    const lenM = Math.hypot(end.x - drawState.startM.x, end.y - drawState.startM.y);
+    previewWall = {
+      id: "__preview__",
+      x1: drawState.startM.x, y1: drawState.startM.y,
+      x2: end.x, y2: end.y,
+      t: thicknessMM/1000
+    };
+    renderInteriorWalls();
+    renderTrackingLines(drawState.startM, end);
+
+    const mid = roomMetersToWorldPx((drawState.startM.x+end.x)/2, (drawState.startM.y+end.y)/2);
+    const client = worldToClient(mid.x, mid.y - 16);
+    drawLengthOverlay.style.left = client.x + "px";
+    drawLengthOverlay.style.top = client.y + "px";
+    drawLengthOverlay.style.display = "flex";
+    drawLengthUnitLabel.textContent = unitLabel();
+    if(!drawLengthUserEdited && lenM > 0.02){
+      setDrawLengthValue(formatLengthValueOnly(lenM));
+    }
+  }
+
+  drawLengthInput.addEventListener("input", ()=>{
+    if(suppressLengthInputEvent){ suppressLengthInputEvent = false; return; }
+    drawLengthUserEdited = true;
+  });
+
+  function commitTypedLength(){
+    if(!drawState) return;
+    const lenM = parseLength(drawLengthInput.value);
+    if(!lenM || lenM <= 0 || Number.isNaN(lenM)) return;
+
+    const ref = (lastComputedEnd && Math.hypot(lastComputedEnd.x-drawState.startM.x, lastComputedEnd.y-drawState.startM.y) > 0.02)
+      ? lastComputedEnd : { x: drawState.startM.x + 1, y: drawState.startM.y };
+    const dx = ref.x - drawState.startM.x, dy = ref.y - drawState.startM.y;
+    const dist = Math.hypot(dx,dy) || 1;
+    const ux = dx/dist, uy = dy/dist;
+    const end = { x: drawState.startM.x + ux*lenM, y: drawState.startM.y + uy*lenM };
+
+    if(chainMode){
+      const committed = commitSegment(drawState.startM, end);
+      if(!committed){ cancelDraw(); return; }
+      drawState = { startM: end, rawStartPx: roomMetersToWorldPx(end.x, end.y), anchorResolved:true };
+      drawLengthUserEdited = false;
+      setDrawLengthValue("");
+      updatePreview(lastPointerClient.x, lastPointerClient.y, false);
+      requestAnimationFrame(()=> drawLengthInput.focus());
+    } else {
+      commitSegment(drawState.startM, end);
+      cancelDraw();
+    }
+  }
+
+  drawLengthInput.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){ e.preventDefault(); commitTypedLength(); }
+    if(e.key === "Escape"){ e.preventDefault(); cancelDraw(); setTool("pan"); }
+  });
+
+  // Fullfører ett vegg-segment fra startM til end. Returnerer true hvis en vegg faktisk ble lagt til.
+  function commitSegment(startM, end){
+    const lenM = Math.hypot(end.x - startM.x, end.y - startM.y);
+    if(lenM < 0.15) return false;
+    pushUndo();
+    interiorWalls.push({
+      id: "iw-" + (idCounter++),
+      x1: startM.x, y1: startM.y,
+      x2: end.x, y2: end.y,
+      t: thicknessMM/1000
+    });
+    recomputeSpaces();
+    return true;
+  }
+
+  function finishDrawing(clientX, clientY, altFree){
+    if(!drawState) return;
+    const end = computeEndpoint(clientX, clientY, altFree);
+    commitSegment(drawState.startM, end);
+    cancelDraw();
+  }
+
+  function cancelDraw(){
+    drawState = null;
+    previewWall = null;
+    drawLengthOverlay.style.display = "none";
+    setDrawLengthValue("");
+    drawLengthUserEdited = false;
+    clearTrackingLines();
+    renderInteriorWalls();
+  }
+
+  window.addEventListener("keydown", (e)=>{
+    if(e.key !== "Escape") return;
+    if(document.activeElement && document.activeElement.tagName === "INPUT") return;
+    if(drawState){ cancelDraw(); }
+    if(dimState){ cancelMeasure(); }
+    if(activeTool !== "pan") setTool("pan");
+  });
+
+  // ---------- Rom (spaces): romnavn + m² via rasterisering/flood fill ----------
+  let spaces = [];
+  let spaceIdCounter = 1;
+
+  function rasterizeWallsBitmap(){
+    const canvas = document.createElement("canvas");
+    canvas.width = vb.w; canvas.height = vb.h;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#fff";
+    ctx.fillRect(0, 0, vb.w, vb.h);
+    ctx.fillStyle = "#000";
+    getAllWallLinesPx().forEach(line => {
+      const ptsStr = wallPolygonPoints({x:line.x1,y:line.y1}, {x:line.x2,y:line.y2}, line.t);
+      const pts = ptsStr.split(" ").map(s => s.split(",").map(Number));
+      ctx.beginPath();
+      pts.forEach(([x,y], i) => i === 0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y));
+      ctx.closePath();
+      ctx.fill();
+    });
+    const data = ctx.getImageData(0, 0, vb.w, vb.h).data;
+    const bitmap = new Uint8Array(vb.w * vb.h);
+    for(let i = 0; i < vb.w*vb.h; i++) bitmap[i] = data[i*4] < 128 ? 1 : 0;
+    return bitmap;
+  }
+
+  function floodFillArea(bitmap, w, h, sx, sy){
+    const start = sy*w + sx;
+    if(sx < 0 || sy < 0 || sx >= w || sy >= h || bitmap[start]) return null;
+    const visited = new Uint8Array(w*h);
+    const queue = new Int32Array(w*h);
+    let qHead = 0, qTail = 0;
+    queue[qTail++] = start; visited[start] = 1;
+    let count = 0;
+    while(qHead < qTail){
+      const idx = queue[qHead++];
+      const x = idx % w, y = (idx / w) | 0;
+      count++;
+      if(x > 0){ const n = idx-1; if(!visited[n] && !bitmap[n]){ visited[n]=1; queue[qTail++]=n; } }
+      if(x < w-1){ const n = idx+1; if(!visited[n] && !bitmap[n]){ visited[n]=1; queue[qTail++]=n; } }
+      if(y > 0){ const n = idx-w; if(!visited[n] && !bitmap[n]){ visited[n]=1; queue[qTail++]=n; } }
+      if(y < h-1){ const n = idx+w; if(!visited[n] && !bitmap[n]){ visited[n]=1; queue[qTail++]=n; } }
+    }
+    return { count, visited };
+  }
+
+  function recomputeSpaces(){
+    if(spaces.length === 0) return;
+    const bitmap = rasterizeWallsBitmap();
+    spaces.forEach(sp => {
+      const result = floodFillArea(bitmap, vb.w, vb.h, Math.round(sp.seedX), Math.round(sp.seedY));
+      sp.areaM2 = result ? result.count/(M*M) : null;
+    });
+    renderSpaces();
+  }
+
+  function fmtArea(m2){
+    if(m2 == null) return "–";
+    if(displayUnit === "imperial"){
+      const sqft = m2 / (M_PER_FOOT*M_PER_FOOT);
+      return sqft.toFixed(1).replace(".", ",") + " SF";
+    }
+    return m2.toFixed(1).replace(".", ",") + " M²";
+  }
+
+  function floorTypeColor(floorType){
+    const colors = {
+      "Parkett": "rgba(185,140,80,0.28)",
+      "Laminat": "rgba(190,185,175,0.35)",
+      "Fliser":  "rgba(80,150,200,0.28)",
+      "Betong":  "rgba(140,140,140,0.25)",
+      "Vinyl":   "rgba(120,190,130,0.24)",
+      "Teppe":   "rgba(180,100,160,0.28)",
+      "Marmor":  "rgba(220,205,185,0.30)",
+    };
+    return colors[floorType] || null;
+  }
+
+  function buildFloorFillImage(sp){
+    if(!sp.floorType) return null;
+    const color = floorTypeColor(sp.floorType);
+    if(!color) return null;
+    const bitmap = rasterizeWallsBitmap();
+    const result = floodFillArea(bitmap, vb.w, vb.h, Math.round(sp.seedX), Math.round(sp.seedY));
+    if(!result) return null;
+    const canvas = document.createElement("canvas");
+    canvas.width = vb.w; canvas.height = vb.h;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = color;
+    const imgData = ctx.createImageData(vb.w, vb.h);
+    // Parse colour to RGBA
+    const tmp = document.createElement("canvas");
+    tmp.width = tmp.height = 1;
+    const tc = tmp.getContext("2d");
+    tc.fillStyle = color; tc.fillRect(0,0,1,1);
+    const [r,g,b,a] = tc.getImageData(0,0,1,1).data;
+    const d = imgData.data;
+    for(let i = 0; i < result.visited.length; i++){
+      if(result.visited[i]){
+        const p = i*4;
+        d[p]=r; d[p+1]=g; d[p+2]=b; d[p+3]=a;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    return canvas.toDataURL("image/png");
+  }
+
+  function floorFillClass(floorType){
+    if(!floorType) return null;
+    return "space-fill-" + floorType.toLowerCase();
+  }
+
+  function renderSpaces(){
+    while(spaceLayer.firstChild) spaceLayer.removeChild(spaceLayer.firstChild);
+    spaces.forEach(sp => {
+      const g = el("g", { class:"space-group" + (sp.areaM2 == null ? " invalid" : ""), "data-id": sp.id });
+
+      // Gulvfarge — faktisk flood-fill som SVG image
+      if(sp.floorType){
+        const dataUrl = buildFloorFillImage(sp);
+        if(dataUrl){
+          const img = el("image", { href:dataUrl, x:0, y:0, width:vb.w, height:vb.h });
+          img.style.pointerEvents = "none";
+          g.appendChild(img);
+        }
+      }
+
+      const nameText = el("text", { class:"space-name", x:sp.labelX, y:sp.labelY-4 });
+      nameText.textContent = sp.name;
+      g.appendChild(nameText);
+
+      const areaText = el("text", { class:"space-area", x:sp.labelX, y:sp.labelY+12 });
+      areaText.textContent = fmtArea(sp.areaM2);
+      g.appendChild(areaText);
+
+      // Gulvtype-annotasjon
+      if(sp.floorType){
+        const ftText = el("text", { class:"space-floor-type", x:sp.labelX, y:sp.labelY+24 });
+        ftText.textContent = sp.floorType.toUpperCase();
+        g.appendChild(ftText);
+      }
+
+      const del = el("g", { class:"space-delete", transform:`translate(${sp.labelX+46},${sp.labelY-14})` });
+      del.appendChild(el("circle", { r:"7" }));
+      const delText = el("text", { x:"0", y:"0.5" });
+      delText.textContent = "×";
+      del.appendChild(delText);
+      del.addEventListener("pointerdown", (e)=>{
+        e.stopPropagation();
+        pushUndo();
+        spaces = spaces.filter(s => s.id !== sp.id);
+        renderSpaces();
+      });
+      g.appendChild(del);
+
+      [nameText, areaText, ...(sp.floorType ? [g.querySelector(".space-floor-type")] : [])].filter(Boolean).forEach(t => t.addEventListener("pointerdown", (e)=>{
+        if(activeTool !== "space") return;
+        e.stopPropagation();
+        const client = worldToClient(sp.labelX, sp.labelY);
+        openNameInput(client.x, client.y, sp.name, (newName)=>{
+          pushUndo();
+          sp.name = newName || sp.name;
+          renderSpaces();
+        });
+      }));
+
+      spaceLayer.appendChild(g);
+    });
+
+    renderRoomSchedule();
+  }
+
+  function focusOnSpace(sp){
+    view.x = vb.w/2 - sp.labelX*view.k;
+    view.y = vb.h/2 - sp.labelY*view.k;
+    updateTransform(true);
+    setTimeout(()=> world.style.transition = "none", 520);
+  }
+
+  const roomSchedule = document.getElementById("roomSchedule");
+  const roomScheduleList = document.getElementById("roomScheduleList");
+  const roomScheduleCount = document.getElementById("roomScheduleCount");
+  const roomScheduleTotal = document.getElementById("roomScheduleTotal");
+
+  function renderRoomSchedule(){
+    roomSchedule.classList.toggle("visible", spaces.length > 0);
+    while(roomScheduleList.firstChild) roomScheduleList.removeChild(roomScheduleList.firstChild);
+
+    let total = 0;
+    spaces.forEach(sp => {
+      if(sp.areaM2 != null) total += sp.areaM2;
+
+      const row = document.createElement("div");
+      row.className = "room-schedule-row";
+      row.addEventListener("click", (e)=>{
+        if(e.target.closest(".room-schedule-row-del")) return;
+        focusOnSpace(sp);
+      });
+
+      const name = document.createElement("div");
+      name.className = "room-schedule-row-name";
+      name.textContent = sp.name;
+      row.appendChild(name);
+
+      const area = document.createElement("div");
+      area.className = "room-schedule-row-area" + (sp.areaM2 == null ? " invalid" : "");
+      area.textContent = fmtArea(sp.areaM2);
+      row.appendChild(area);
+
+      const del = document.createElement("div");
+      del.className = "room-schedule-row-del";
+      del.textContent = "×";
+      del.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        pushUndo();
+        spaces = spaces.filter(s => s.id !== sp.id);
+        renderSpaces();
+      });
+      row.appendChild(del);
+
+      roomScheduleList.appendChild(row);
+    });
+
+    roomScheduleCount.textContent = spaces.length;
+    roomScheduleTotal.textContent = fmtArea(total);
+  }
+
+  function worldToClient(wx, wy){
+    const vbX = view.x + wx*view.k;
+    const vbY = view.y + wy*view.k;
+    const pt = stage.createSVGPoint();
+    pt.x = vbX; pt.y = vbY;
+    const ctm = stage.getScreenCTM();
+    const p = pt.matrixTransform(ctm);
+    return { x:p.x, y:p.y };
+  }
+
+  let hintTimer = null;
+  function showSpaceHint(wx, wy, msg){
+    spaceHint.setAttribute("x", wx);
+    spaceHint.setAttribute("y", wy-20);
+    spaceHint.textContent = msg;
+    spaceHint.style.opacity = "1";
+    clearTimeout(hintTimer);
+    hintTimer = setTimeout(hideSpaceHint, 1400);
+  }
+  function hideSpaceHint(){ spaceHint.style.opacity = "0"; }
+
+  const spaceNameInput = document.getElementById("spaceNameInput");
+  let nameInputConfirm = null;
+
+  const floorTypeOverlay = document.getElementById("floorTypeOverlay");
+  const floorTypeSelect = document.getElementById("floorTypeSelect");
+  const btnConfirmSpace = document.getElementById("btnConfirmSpace");
+  let currentSpaceForFloor = null;
+
+  btnConfirmSpace.addEventListener("mousedown", (e)=>{
+    e.preventDefault(); // hindrer blur på input
+    closeNameInput(true);
+  });
+
+  function openNameInput(clientX, clientY, initialValue, onConfirm){
+    nameInputConfirm = onConfirm;
+    spaceNameInput.style.left = clientX + "px";
+    spaceNameInput.style.top = clientY + "px";
+    spaceNameInput.style.display = "block";
+    spaceNameInput.value = initialValue || "";
+    requestAnimationFrame(()=>{ spaceNameInput.focus(); spaceNameInput.select(); });
+  }
+  function openNameInputWithFloor(clientX, clientY, initialValue, initialFloor, sp, onConfirm){
+    currentSpaceForFloor = sp;
+    floorTypeSelect.value = initialFloor || "";
+    floorTypeOverlay.style.left = clientX + "px";
+    floorTypeOverlay.style.top = clientY + "px";
+    floorTypeOverlay.style.display = "block";
+    floorTypeSelect.onchange = ()=>{
+      if(currentSpaceForFloor) currentSpaceForFloor.floorType = floorTypeSelect.value || null;
+      renderSpaces();
+    };
+    openNameInput(clientX, clientY, initialValue, onConfirm);
+  }
+  function closeNameInput(confirm){
+    if(spaceNameInput.style.display === "none") return;
+    const value = spaceNameInput.value.trim();
+    const cb = nameInputConfirm;
+    spaceNameInput.style.display = "none";
+    floorTypeOverlay.style.display = "none";
+    currentSpaceForFloor = null;
+    nameInputConfirm = null;
+    if(confirm && cb) cb(value);
+  }
+  spaceNameInput.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter"){ e.preventDefault(); closeNameInput(true); }
+    if(e.key === "Escape"){ spaceNameInput.value = ""; closeNameInput(false); }
+  });
+  spaceNameInput.addEventListener("blur", ()=>{
+    setTimeout(()=>{
+      if(document.activeElement !== floorTypeSelect) closeNameInput(true);
+    }, 150);
+  });
+  floorTypeSelect.addEventListener("keydown", (e)=>{
+    if(e.key === "Enter" || e.key === "Tab"){ e.preventDefault(); closeNameInput(true); }
+    if(e.key === "Escape"){ closeNameInput(false); }
+  });
+  floorTypeSelect.addEventListener("blur", ()=>{
+    setTimeout(()=>{
+      if(document.activeElement !== spaceNameInput) closeNameInput(true);
+    }, 150);
+  });
+
+  function tryCreateSpaceAt(clientX, clientY){
+    const w = toWorldPoint(clientX, clientY);
+    const bitmap = rasterizeWallsBitmap();
+    const sx = Math.round(w.x), sy = Math.round(w.y);
+    const result = floodFillArea(bitmap, vb.w, vb.h, sx, sy);
+    if(!result){
+      showSpaceHint(w.x, w.y, "KLIKK INNI ET LUKKET ROM");
+      return;
+    }
+    const existing = spaces.find(sp => {
+      const esx = Math.round(sp.seedX), esy = Math.round(sp.seedY);
+      if(esx < 0 || esy < 0 || esx >= vb.w || esy >= vb.h) return false;
+      return result.visited[esy*vb.w + esx] === 1;
+    });
+    if(existing){
+      // Rom finnes – åpne redigering med gulvtype
+      const client = worldToClient(w.x, w.y);
+      openNameInputWithFloor(client.x, client.y, existing.name, existing.floorType, existing, (name)=>{
+        pushUndo();
+        existing.name = name || existing.name;
+        renderSpaces();
+      });
+      return;
+    }
+    const areaM2 = result.count/(M*M);
+    const client = worldToClient(w.x, w.y);
+    const newSp = {
+      id: "sp-" + spaceIdCounter,
+      name: "",
+      areaM2, seedX:w.x, seedY:w.y, labelX:w.x, labelY:w.y,
+      floorType: null
+    };
+    openNameInputWithFloor(client.x, client.y, "", null, newSp, (name)=>{
+      pushUndo();
+      newSp.name = name || ("Rom " + spaceIdCounter);
+      spaces.push(newSp);
+      spaceIdCounter++;
+      renderSpaces();
+    });
+  }
+
+  // ---------- Pointer-routing på stage (pan vs. tegn) ----------
+  let dragging = false, last = null;
+
+  stage.addEventListener("pointerdown", (e)=>{
+    if(activeTool === "draw"){
+      if(chainMode && drawState){
+        const end = computeEndpoint(e.clientX, e.clientY, e.altKey);
+        const committed = commitSegment(drawState.startM, end);
+        if(!committed){ cancelDraw(); return; }
+        drawState = { startM: end, rawStartPx: roomMetersToWorldPx(end.x, end.y), anchorResolved:true };
+        drawLengthUserEdited = false;
+        setDrawLengthValue("");
+        updatePreview(e.clientX, e.clientY, e.altKey);
+        return;
+      }
+      startDrawing(e);
+      return;
+    }
+    if(activeTool === "erase"){ return; }
+    if(activeTool === "space"){ tryCreateSpaceAt(e.clientX, e.clientY); return; }
+    if(activeTool === "opening"){
+      if(selectedOpeningId){
+        selectedOpeningId = null;
+        renderOpenings();
+        return;
+      }
+      tryCreateOpeningAt(e.clientX, e.clientY);
+      return;
+    }
+    if(activeTool === "measure"){ measurePointerDown(e.clientX, e.clientY); return; }
+    if(activeTool === "gridline"){ tryCreateGridLine(e.clientX, e.clientY); return; }
+    if(activeTool === "edit"){
+      if(selectedWallId){
+        selectedWallId = null;
+        thicknessControl.style.display = "none";
+        lengthDivider.style.display = "none";
+        lengthInput.style.display = "none";
+        lengthUnit.style.display = "none";
+        renderInteriorWalls();
+      }
+      return;
+    }
+    // I pan-modus: klikk på tom canvas rydder selection; drag panorerer
+    if(selectedObject){ clearSelection(); return; }
+    dragging = true; last = { x:e.clientX, y:e.clientY };
+    stage.classList.add("grabbing");
+    stage.setPointerCapture(e.pointerId);
+  });
+
+  // ---------- Seleksjon i pan-modus (↖ Velg) ----------
+  let selectedObject = null; // { type:'opening'|'wall', id }
+
+  function clearSelection(){
+    selectedObject = null;
+    selectedOpeningId = null;
+    renderOpenings();     // skjuler redigeringspanelet
+    renderSelectionRing();
+  }
+
+  function renderSelectionRing(){
+    while(highlightLayer.firstChild) highlightLayer.removeChild(highlightLayer.firstChild);
+    if(!selectedObject) return;
+    if(selectedObject.type === "opening"){
+      const op = openings.find(o => o.id === selectedObject.id);
+      if(!op) return;
+      const w = interiorWalls.find(x => x.id === op.wallId);
+      if(!w) return;
+      const g = wallGeometryPx(w);
+      const sPx = op.s*M, wPx = op.width*M, half = g.t/2 + 4/view.k;
+      const aX = g.p1.x + g.ux*(sPx-wPx/2), aY = g.p1.y + g.uy*(sPx-wPx/2);
+      const bX = g.p1.x + g.ux*(sPx+wPx/2), bY = g.p1.y + g.uy*(sPx+wPx/2);
+      const pts = [
+        {x:aX+g.nx*half, y:aY+g.ny*half},{x:bX+g.nx*half, y:bY+g.ny*half},
+        {x:bX-g.nx*half, y:bY-g.ny*half},{x:aX-g.nx*half, y:aY-g.ny*half},
+      ].map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+      highlightLayer.appendChild(el("polygon", { points:pts, class:"selection-ring" }));
+    }
+  }
+
+  // Koble klikk på åpninger i pan-modus
+  function attachPanSelectToOpening(grp, op){
+    grp.addEventListener("pointerdown", (e)=>{
+      if(activeTool !== "pan") return;
+      e.stopPropagation();
+      if(selectedObject?.id === op.id){
+        // Allerede valgt — start drag langs veggen via stage (grp gjenskapes ved renderOpenings)
+        const wallObj = interiorWalls.find(x => x.id === op.wallId);
+        if(!wallObj) return;
+        pushUndo();
+        stage.setPointerCapture(e.pointerId);
+        const p1 = roomMetersToWorldPx(wallObj.x1, wallObj.y1);
+        const p2 = roomMetersToWorldPx(wallObj.x2, wallObj.y2);
+        const dx = p2.x-p1.x, dy = p2.y-p1.y;
+        const lenPx = Math.hypot(dx,dy)||0.0001;
+        const ux = dx/lenPx, uy = dy/lenPx;
+        let moved = false;
+        const onMove = (ev)=>{
+          moved = true;
+          const liveOp = openings.find(o => o.id === op.id);
+          if(!liveOp) return;
+          const w2 = toWorldPoint(ev.clientX, ev.clientY);
+          const vx = w2.x-p1.x, vy = w2.y-p1.y;
+          const sPx = vx*ux + vy*uy;
+          const wPx = liveOp.width*M, clearPx = OPENING_MIN_CLEARANCE*M;
+          liveOp.s = snap5(Math.min(Math.max(sPx, wPx/2+clearPx), lenPx-wPx/2-clearPx)/M);
+          renderOpenings();
+          renderSelectionRing();
+          renderOpeningPreviewDims({ wallId: liveOp.wallId, sPx: liveOp.s*M, wPx, lenPx });
+        };
+        const onUp = ()=>{
+          stage.releasePointerCapture(e.pointerId);
+          stage.removeEventListener("pointermove", onMove);
+          stage.removeEventListener("pointerup", onUp);
+          while(openingPreviewLayer.firstChild) openingPreviewLayer.removeChild(openingPreviewLayer.firstChild);
+          if(moved) recomputeSpaces();
+        };
+        stage.addEventListener("pointermove", onMove);
+        stage.addEventListener("pointerup", onUp);
+      } else {
+        selectedObject = { type:"opening", id: op.id };
+        selectedOpeningId = op.id;   // kobler inn redigeringspanelet
+        renderSelectionRing();
+        renderOpenings();             // oppdaterer panelet via updateOpeningEditOverlay
+      }
+    });
+  }
+
+  stage.addEventListener("dblclick", (e)=>{
+    if(activeTool === "draw" && chainMode && drawState){
+      e.preventDefault();
+      const end = computeEndpoint(e.clientX, e.clientY, e.altKey);
+      commitSegment(drawState.startM, end);
+      cancelDraw();
+    }
+  });
+
+  stage.addEventListener("pointermove", (e)=>{
+    if(activeTool === "draw" || activeTool === "measure" || activeTool === "edit"){
+      const wp = toWorldPoint(e.clientX, e.clientY);
+      renderSnapMarker(resolveSnapMarker(wp.x, wp.y));
+    } else {
+      renderSnapMarker(null);
+    }
+
+    if(activeTool === "draw" && drawState){
+      updatePreview(e.clientX, e.clientY, e.altKey);
+      return;
+    }
+    if(activeTool === "measure" && dimState){
+      measurePointerMove(e.clientX, e.clientY);
+      return;
+    }
+    if(activeTool === "opening"){
+      openingPreview = computeOpeningPreview(e.clientX, e.clientY);
+      renderOpeningPreview();
+      return;
+    }
+    if(activeTool === "gridline"){
+      const w = toWorldPoint(e.clientX, e.clientY);
+      const m = worldPxToRoomMeters(w.x, w.y);
+      const pos = snap5(gridLineAxis === "y" ? m.x : m.y);
+      renderGridLineDims("__preview__", pos);
+      return;
+    }
+    if(!dragging) return;
+    const scaleRatio = vb.w / stage.getBoundingClientRect().width;
+    view.x += (e.clientX - last.x) * scaleRatio;
+    view.y += (e.clientY - last.y) * scaleRatio;
+    last = { x:e.clientX, y:e.clientY };
+    updateTransform(false);
+  });
+
+  function endDrag(e){
+    if(activeTool === "draw" && drawState && !chainMode){
+      finishDrawing(e.clientX, e.clientY, e.altKey);
+      return;
+    }
+    dragging = false;
+    stage.classList.remove("grabbing");
+  }
+  stage.addEventListener("pointerup", endDrag);
+  stage.addEventListener("pointerleave", (e)=>{ renderSnapMarker(null); if(!drawState) endDrag(e); });
+
+  stage.addEventListener("wheel", (e)=>{
+    e.preventDefault();
+    const p = toViewBox(e.clientX, e.clientY);
+    const factor = e.deltaY < 0 ? 1.12 : 1/1.12;
+    zoomAt(p.x, p.y, factor);
+  }, { passive:false });
+
+  document.getElementById("zoomIn").addEventListener("click", ()=> zoomAt(vb.w/2, vb.h/2, 1.2));
+  document.getElementById("zoomOut").addEventListener("click", ()=> zoomAt(vb.w/2, vb.h/2, 1/1.2));
+  document.getElementById("zoomReset").addEventListener("click", ()=>{
+    view.x = 0; view.y = 0; view.k = 1;
+    updateTransform(true);
+    setTimeout(()=> world.style.transition = "none", 520);
+  });
+
+})();
+</script>
+</body>
+</html>
