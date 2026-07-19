@@ -523,7 +523,7 @@
 
   <div class="hud">
     <div class="hud-title"><span class="proj">DRAWPLAN</span><span class="sep">/</span><span class="file">drawplan</span></div>
-    <div class="hud-sub">DRA VEGGER FOR Å FLYTTE ELLER ENDRE LENGDE</div>
+    <div class="hud-sub">DRAG WALLS TO MOVE OR CHANGE LENGTH</div>
   </div>
 
   <div class="compass" aria-hidden="true">
@@ -545,12 +545,12 @@
 
   <div class="room-schedule" id="roomSchedule">
     <div class="room-schedule-header">
-      <span>ROMSKJEMA</span>
+      <span>ROOM SCHEDULE</span>
       <span class="room-schedule-count" id="roomScheduleCount">0</span>
     </div>
     <div class="room-schedule-list" id="roomScheduleList"></div>
     <div class="room-schedule-total">
-      <span>TOTALT</span>
+      <span>TOTAL</span>
       <span id="roomScheduleTotal">0,0 M²</span>
     </div>
   </div>
@@ -585,18 +585,18 @@
 
   <div class="toolbar tools">
     <div class="mode-group">
-      <button class="mode-btn active" id="toolPan" aria-pressed="true" title="Velg/panorér (V)">↖ Velg</button>
-      <button class="mode-btn" id="toolDraw" aria-pressed="false">Vegger</button>
-      <button class="mode-btn" id="toolEdit" aria-pressed="false">Rediger</button>
-      <button class="mode-btn" id="toolErase" aria-pressed="false">Slett</button>
-      <button class="mode-btn" id="toolSpace" aria-pressed="false">Rom</button>
-      <button class="mode-btn" id="toolOpening" aria-pressed="false">Åpning</button>
-      <button class="mode-btn" id="toolMeasure" aria-pressed="false">Mål</button>
-      <button class="mode-btn" id="toolGridLine" aria-pressed="false">Gridlinjer</button>
+      <button class="mode-btn active" id="toolPan" aria-pressed="true" title="Select/pan (V)">↖ Select</button>
+      <button class="mode-btn" id="toolDraw" aria-pressed="false">Walls</button>
+      <button class="mode-btn" id="toolEdit" aria-pressed="false">Edit</button>
+      <button class="mode-btn" id="toolErase" aria-pressed="false">Delete</button>
+      <button class="mode-btn" id="toolSpace" aria-pressed="false">Rooms</button>
+      <button class="mode-btn" id="toolOpening" aria-pressed="false">Opening</button>
+      <button class="mode-btn" id="toolMeasure" aria-pressed="false">Measure</button>
+      <button class="mode-btn" id="toolGridLine" aria-pressed="false">Grid lines</button>
     </div>
     <div class="thickness-control" id="thicknessControl">
       <div class="divider"></div>
-      <button class="mode-btn" id="chainToggle" style="display:none;">Kjede</button>
+      <button class="mode-btn" id="chainToggle" style="display:none;">Chain</button>
       <div class="divider" id="chainDivider" style="display:none;"></div>
       <input type="number" id="thicknessInput" min="20" max="500" step="5" value="100" inputmode="numeric">
       <span class="thickness-unit">MM</span>
@@ -607,8 +607,8 @@
     <div class="thickness-control" id="openingControl">
       <div class="divider"></div>
       <div class="mode-group small">
-        <button class="mode-btn active" id="openingTypeDoor">Dør</button>
-        <button class="mode-btn" id="openingTypeWindow">Vindu</button>
+        <button class="mode-btn active" id="openingTypeDoor">Door</button>
+        <button class="mode-btn" id="openingTypeWindow">Window</button>
       </div>
       <input type="number" id="openingWidthInput" min="400" max="3000" step="50" value="900" inputmode="numeric">
       <span class="thickness-unit">MM</span>
@@ -616,8 +616,8 @@
     <div class="thickness-control" id="gridLineControl">
       <div class="divider"></div>
       <div class="mode-group small">
-        <button class="mode-btn active" id="glAxisVertical" title="Vertikal linje (tall: 1, 2, 3…)">↕ Vertikal</button>
-        <button class="mode-btn" id="glAxisHorizontal" title="Horisontal linje (bokstav: A, B, C…)">↔ Horisontal</button>
+        <button class="mode-btn active" id="glAxisVertical" title="Vertical line (number: 1, 2, 3…)">↕ Vertical</button>
+        <button class="mode-btn" id="glAxisHorizontal" title="Horizontal line (letter: A, B, C…)">↔ Horizontal</button>
       </div>
     </div>
   </div>
@@ -628,58 +628,58 @@
       <button class="mode-btn" id="btnPolish" aria-pressed="false">Polish</button>
     </div>
     <div class="divider"></div>
-    <button class="icon-btn" id="btnUndo" title="Angre (Ctrl+Z)" aria-label="Angre">↶</button>
-    <button class="icon-btn" id="btnRedo" title="Gjør om (Ctrl+Shift+Z)" aria-label="Gjør om">↷</button>
+    <button class="icon-btn" id="btnUndo" title="Undo (Ctrl+Z)" aria-label="Undo">↶</button>
+    <button class="icon-btn" id="btnRedo" title="Redo (Ctrl+Shift+Z)" aria-label="Redo">↷</button>
     <div class="divider"></div>
-    <button class="icon-btn active" id="btnSnap" title="Snap av/på" aria-label="Snap av/på">🧲</button>
-    <button class="icon-btn active" id="btnGrid" title="Rutenett av/på" aria-label="Rutenett av/på">#</button>
+    <button class="icon-btn active" id="btnSnap" title="Toggle snap" aria-label="Toggle snap">🧲</button>
+    <button class="icon-btn active" id="btnGrid" title="Toggle grid" aria-label="Toggle grid">#</button>
     <div class="divider"></div>
-    <button class="icon-btn" id="zoomOut" title="Zoom ut" aria-label="Zoom ut">−</button>
-    <button class="icon-btn" id="zoomReset" title="Tilbakestill visning" aria-label="Tilbakestill visning">⤢</button>
-    <button class="icon-btn" id="zoomIn" title="Zoom inn" aria-label="Zoom inn">+</button>
+    <button class="icon-btn" id="zoomOut" title="Zoom out" aria-label="Zoom ut">−</button>
+    <button class="icon-btn" id="zoomReset" title="Reset view" aria-label="Tilbakestill visning">⤢</button>
+    <button class="icon-btn" id="zoomIn" title="Zoom in" aria-label="Zoom inn">+</button>
     <div class="divider"></div>
-    <button class="icon-btn" id="btnSave" title="Lagre som fil" aria-label="Lagre">⭳</button>
-    <button class="icon-btn" id="btnLoad" title="Åpne fil" aria-label="Åpne">⭱</button>
-    <button class="icon-btn" id="btnExport" title="Last ned som bilde (PNG)" aria-label="Last ned som bilde">▤</button>
-    <button class="icon-btn" id="btnExportPDF" title="Last ned som vektor-PDF (1:1 skala)" aria-label="Last ned som vektor-PDF">⬡</button>
+    <button class="icon-btn" id="btnSave" title="Save to file" aria-label="Save">⭳</button>
+    <button class="icon-btn" id="btnLoad" title="Open file" aria-label="Open">⭱</button>
+    <button class="icon-btn" id="btnExport" title="Export as image (PNG)" aria-label="Export as image">▤</button>
+    <button class="icon-btn" id="btnExportPDF" title="Export as vector PDF (1:1 scale)" aria-label="Export as vector PDF">⬡</button>
     <div class="divider"></div>
-    <select id="unitSelect" class="unit-select" title="Måleenhet" aria-label="Måleenhet">
+    <select id="unitSelect" class="unit-select" title="Unit" aria-label="Unit">
       <option value="mm" selected>MM</option>
       <option value="cm">CM</option>
       <option value="m">M</option>
       <option value="imperial">FT/IN</option>
     </select>
     <div class="divider"></div>
-    <button class="icon-btn" id="btnTheme" title="Bytt mørk/lys modus" aria-label="Bytt mørk/lys modus">☾</button>
+    <button class="icon-btn" id="btnTheme" title="Toggle dark/light mode" aria-label="Toggle dark/light mode">☾</button>
   </div>
   <input type="file" id="fileInput" accept="application/json" style="display:none">
 
   <div class="vignette"></div>
 
-  <input type="text" id="spaceNameInput" class="space-name-input" autocomplete="off" spellcheck="false" placeholder="Navn på rom">
+  <input type="text" id="spaceNameInput" class="space-name-input" autocomplete="off" spellcheck="false" placeholder="Room name">
 
   <div class="floor-type-overlay" id="floorTypeOverlay">
     <select id="floorTypeSelect" class="floor-type-select">
-      <option value="">– ingen gulvtype –</option>
-      <option value="Parkett">Parkett</option>
-      <option value="Laminat">Laminat</option>
-      <option value="Fliser">Fliser</option>
-      <option value="Betong">Betong</option>
+      <option value="">– no floor type –</option>
+      <option value="Parquet">Parquet</option>
+      <option value="Laminate">Laminate</option>
+      <option value="Tiles">Tiles</option>
+      <option value="Concrete">Concrete</option>
       <option value="Vinyl">Vinyl</option>
-      <option value="Teppe">Teppe</option>
-      <option value="Marmor">Marmor</option>
+      <option value="Carpet">Carpet</option>
+      <option value="Marble">Marble</option>
     </select>
-    <button id="btnConfirmSpace" title="Bekreft (Enter)">✓</button>
+    <button id="btnConfirmSpace" title="Confirm (Enter)">✓</button>
   </div>
 
   <div class="opening-edit-overlay" id="openingEditOverlay">
-    <button class="icon-btn" id="btnHingeSide" title="Bytt hengselside (venstre/høyre)" aria-label="Bytt hengselside">⇄</button>
-    <button class="icon-btn" id="btnSwingSide" title="Bytt svingretning (inn/ut)" aria-label="Bytt svingretning">⇅</button>
+    <button class="icon-btn" id="btnHingeSide" title="Flip hinge side" aria-label="Flip hinge side">⇄</button>
+    <button class="icon-btn" id="btnSwingSide" title="Flip swing direction" aria-label="Flip swing direction">⇅</button>
     <div class="divider"></div>
-    <input type="number" id="openingWidthEdit" min="200" max="5000" step="50" inputmode="numeric" title="Bredde i MM">
+    <input type="number" id="openingWidthEdit" min="200" max="5000" step="50" inputmode="numeric" title="Width in MM">
     <span style="font-family:var(--mono);font-size:11px;color:var(--text-faint)">MM</span>
     <div class="divider"></div>
-    <button class="icon-btn" id="btnDeleteOpening" title="Slett" aria-label="Slett">×</button>
+    <button class="icon-btn" id="btnDeleteOpening" title="Delete" aria-label="Delete">×</button>
   </div>
 
   <div class="draw-length-overlay" id="drawLengthOverlay">
@@ -899,7 +899,7 @@
         if(isFinite(minX)) axisOriginX = minX;
         if(isFinite(maxY)) axisOriginY = maxY;
       }
-    } catch(e) { /* interiorWalls ikke klar ennå */ }
+    } catch(e) { /* interiorWalls not ready yet */ }
     for(let x = startX; x <= Math.min(visX1,MAX_EXTENT_M)+eps; x += useM){
       const isCoarse = Math.abs(x%coarseM)<eps || Math.abs(x%coarseM-coarseM)<eps;
       const isAxis = Math.abs(x - axisOriginX)<eps;
@@ -1586,7 +1586,7 @@
       const wPx = newWM*M;
       const clearPx = OPENING_MIN_CLEARANCE*M;
       if(wPx/2 + clearPx > sPx || sPx + wPx/2 + clearPx > lenPx){
-        showSpaceHint(vb.w/2, vb.h/2, "PLASS IKKE NOK FOR " + newW + " MM");
+        showSpaceHint(vb.w/2, vb.h/2, "NOT ENOUGH ROOM FOR " + newW + " MM");
         openingWidthEdit.value = Math.round(op.width*1000);
         return;
       }
@@ -1854,14 +1854,14 @@
     const preview = computeOpeningPreview(clientX, clientY);
     if(!preview){
       const line = findAnchorWallAt(w.x, w.y);
-      showSpaceHint(w.x, w.y, line ? "VEGGEN ER FOR KORT" : "KLIKK PÅ EN VEGG");
+      showSpaceHint(w.x, w.y, line ? "WALL TOO SHORT" : "CLICK ON A WALL");
       return;
     }
     const { wallId, sPx, wPx } = preview;
     const clearancePx = OPENING_MIN_CLEARANCE*M;
     const junctions = getJunctionsAlongWall(wallId);
     if(!openingClearanceOk(sPx, wPx, junctions, clearancePx)){
-      showSpaceHint(w.x, w.y, "FOR NÆR ET HJØRNE ELLER EN VEGG");
+      showSpaceHint(w.x, w.y, "TOO CLOSE TO A CORNER OR WALL");
       return;
     }
     pushUndo();
@@ -2303,7 +2303,7 @@
       if(activeTool !== "gridline" && activeTool !== "erase") return;
       e.stopPropagation();
       if(activeTool === "erase"){
-        if(g.locked){ showSpaceHint(e.clientX, e.clientY, "GRIDLINJE ER LÅST"); return; }
+        if(g.locked){ showSpaceHint(e.clientX, e.clientY, "GRID LINE IS LOCKED"); return; }
         pushUndo();
         archGridLines = archGridLines.filter(x => x.id !== g.id);
         if(selectedGridLineId === g.id) selectedGridLineId = null;
@@ -2344,7 +2344,7 @@
     bgrp.addEventListener("pointerdown", (e)=>{
       e.stopPropagation();
       if(activeTool === "erase"){
-        if(g.locked){ showSpaceHint(e.clientX, e.clientY, "GRIDLINJE ER LÅST"); return; }
+        if(g.locked){ showSpaceHint(e.clientX, e.clientY, "GRID LINE IS LOCKED"); return; }
         pushUndo();
         archGridLines = archGridLines.filter(x => x.id !== g.id);
         if(selectedGridLineId === g.id) selectedGridLineId = null;
@@ -2381,7 +2381,7 @@
       id: "gl-" + (archGridIdCounter++),
       axis,
       pos: snap5(axis === "y" ? m.x : m.y),
-      label: "?"  // foreløpig, relabelGridLines setter riktig navn
+      label: "?"  // temporary, relabelGridLines will assign correct label
     });
     relabelGridLines();
     renderArchGridLines();
@@ -2404,7 +2404,7 @@
   function pushUndo(){
     undoStack.push(snapshotState());
     if(undoStack.length > UNDO_LIMIT) undoStack.shift();
-    redoStack = []; // en ny handling gjør den gamle "gjør om"-historikken ugyldig
+    redoStack = []; // a new action invalidates the redo history
   }
 
   function restoreSnapshot(s){
@@ -2478,7 +2478,7 @@
     reader.onload = (e)=>{
       let data;
       try{ data = JSON.parse(e.target.result); }
-      catch(err){ showSpaceHint(vb.w/2, vb.h/2, "KUNNE IKKE LESE FILEN"); return; }
+      catch(err){ showSpaceHint(vb.w/2, vb.h/2, "COULD NOT READ FILE"); return; }
       pushUndo();
       interiorWalls = Array.isArray(data.interiorWalls) ? data.interiorWalls : [];
       openings = Array.isArray(data.openings) ? data.openings : [];
@@ -2584,7 +2584,7 @@
     };
     img.onerror = (e)=>{
       URL.revokeObjectURL(url);
-      showSpaceHint(vb.w/2, vb.h/2, "EKSPORT FEILET");
+      showSpaceHint(vb.w/2, vb.h/2, "EXPORT FAILED");
       console.error("PNG eksport feil:", e);
     };
     img.src = url;
@@ -2610,7 +2610,7 @@
 
   function exportPDF(){
     if(!window.jspdf || !window.jspdf.jsPDF){
-      showSpaceHint(vb.w/2, vb.h/2, "PDF-BIBLIOTEK IKKE LASTET (KREVER INTERNETT)");
+      showSpaceHint(vb.w/2, vb.h/2, "PDF LIBRARY NOT LOADED (REQUIRES INTERNET)");
       return;
     }
     const bounds = computeContentBoundsPx();
@@ -2664,7 +2664,7 @@
     }).catch((err)=>{
       document.body.removeChild(clone);
       console.error(err);
-      showSpaceHint(vb.w/2, vb.h/2, "PDF-EKSPORT FEILET");
+      showSpaceHint(vb.w/2, vb.h/2, "PDF EXPORT FAILED");
     });
   }
   document.getElementById("btnExportPDF").addEventListener("click", exportPDF);
@@ -3153,13 +3153,13 @@
 
   function floorTypeColor(floorType){
     const colors = {
-      "Parkett": "rgba(185,140,80,0.28)",
-      "Laminat": "rgba(190,185,175,0.35)",
-      "Fliser":  "rgba(80,150,200,0.28)",
-      "Betong":  "rgba(140,140,140,0.25)",
+      "Parquet": "rgba(185,140,80,0.28)",
+      "Laminate": "rgba(190,185,175,0.35)",
+      "Tiles":  "rgba(80,150,200,0.28)",
+      "Concrete":  "rgba(140,140,140,0.25)",
       "Vinyl":   "rgba(120,190,130,0.24)",
-      "Teppe":   "rgba(180,100,160,0.28)",
-      "Marmor":  "rgba(220,205,185,0.30)",
+      "Carpet":   "rgba(180,100,160,0.28)",
+      "Marble":  "rgba(220,205,185,0.30)",
     };
     return colors[floorType] || null;
   }
@@ -3343,7 +3343,7 @@
   let currentSpaceForFloor = null;
 
   btnConfirmSpace.addEventListener("mousedown", (e)=>{
-    e.preventDefault(); // hindrer blur på input
+    e.preventDefault(); // prevents blur on input
     closeNameInput(true);
   });
 
@@ -3402,7 +3402,7 @@
     const sx = Math.round(w.x), sy = Math.round(w.y);
     const result = floodFillArea(bitmap, vb.w, vb.h, sx, sy);
     if(!result){
-      showSpaceHint(w.x, w.y, "KLIKK INNI ET LUKKET ROM");
+      showSpaceHint(w.x, w.y, "CLICK INSIDE A CLOSED ROOM");
       return;
     }
     const existing = spaces.find(sp => {
