@@ -660,6 +660,7 @@
     <button class="icon-btn" id="btnExport" title="Export as image (PNG)" aria-label="Export as image">▤</button>
     <button class="icon-btn" id="btnExportPDF" title="Export as vector PDF (1:1 scale)" aria-label="Export as vector PDF">⬡</button>
     <button class="icon-btn" id="btnExportSVG" title="Export as SVG (true scale, snappable in Blender/CAD)" aria-label="Export as SVG" style="font-size:10px;font-family:var(--mono);font-weight:600;">SVG</button>
+    <button class="icon-btn" id="btnExportDXF" title="Export as DXF (true scale, for AutoCAD/Revit)" aria-label="Export as DXF" style="font-size:10px;font-family:var(--mono);font-weight:600;">DXF</button>
     <div class="divider"></div>
     <select id="unitSelect" class="unit-select" title="Unit" aria-label="Unit">
       <option value="mm" selected>MM</option>
@@ -2550,23 +2551,46 @@
   document.getElementById("btnUndo").addEventListener("click", ()=> undo());
   document.getElementById("btnRedo").addEventListener("click", ()=> redo());
 
+  // ---------- Felles "Lagre som"-dialog for alle eksporter ----------
+  // Chrome/Edge: ekte native dialog der man velger mappe og filnavn selv (File System Access API).
+  // Andre nettlesere (Firefox, Safari) har ikke støtte — da faller vi tilbake til vanlig nedlasting.
+  async function saveBlob(blob, suggestedName, description, mimeType, ext){
+    if(window.showSaveFilePicker){
+      try{
+        const handle = await window.showSaveFilePicker({
+          suggestedName,
+          types: [{ description, accept: { [mimeType]: [ext] } }]
+        });
+        const writable = await handle.createWritable();
+        await writable.write(blob);
+        await writable.close();
+        return;
+      } catch(err){
+        if(err.name === "AbortError") return; // brukeren avbrøt dialogen
+        // annen feil — fall gjennom til vanlig nedlasting
+      }
+    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = suggestedName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
   // ---------- Lagre / åpne (JSON) ----------
-  function exportState(){
+  async function exportState(){
     const data = {
       version: 1,
       interiorWalls, openings, spaces, dimensions, archGridLines,
       idCounter, openingIdCounter, spaceIdCounter, dimIdCounter, archGridIdCounter
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type:"application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
+    const json = JSON.stringify(data, null, 2);
     const stamp = new Date().toISOString().slice(0,10);
-    a.download = "drawplan_" + stamp + ".json";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const blob = new Blob([json], { type:"application/json" });
+    await saveBlob(blob, "drawplan_" + stamp + ".json", "Drawplan JSON", "application/json", ".json");
   }
 
   function importStateFromFile(file){
@@ -2670,12 +2694,7 @@
       ctx.drawImage(img, 0, 0, widthPx, heightPx);
       URL.revokeObjectURL(url);
       canvas.toBlob((blob)=>{
-        const link = document.createElement("a");
-        link.href = URL.createObjectURL(blob);
-        link.download = "drawplan.png";
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        saveBlob(blob, "drawplan.png", "PNG image", "image/png", ".png");
       });
     };
     img.onerror = (e)=>{
@@ -2756,7 +2775,8 @@
 
     doc.svg(clone, { x:0, y:0, width:widthMM, height:heightMM }).then(()=>{
       document.body.removeChild(clone);
-      doc.save("drawplan_1-1_skala.pdf");
+      const blob = doc.output("blob");
+      saveBlob(blob, "drawplan_1-1_skala.pdf", "PDF document", "application/pdf", ".pdf");
     }).catch((err)=>{
       document.body.removeChild(clone);
       console.error(err);
@@ -2834,7 +2854,7 @@
     });
   }
 
-  function exportSVG(){
+  async function exportSVG(){
     const b = computeContentBoundsMeters();
     const Wmm = (b.maxX-b.minX)*1000, Hmm = (b.maxY-b.minY)*1000;
     const mx = x => (x-b.minX)*1000;
@@ -2953,17 +2973,185 @@ ${gridSvg}</g>
 `;
 
     const blob = new Blob([svg], { type:"image/svg+xml" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
     const stamp = new Date().toISOString().slice(0,10);
-    a.download = "drawplan_" + stamp + ".svg";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    await saveBlob(blob, "drawplan_" + stamp + ".svg", "Drawplan SVG", "image/svg+xml", ".svg");
   }
   document.getElementById("btnExportSVG").addEventListener("click", exportSVG);
+
+  // ---------- Eksporter som DXF (R12 / AC1009 — for AutoCAD/Revit) ----------
+  // Gjenbruker nøyaktig samme geometri-beregninger som SVG-eksporten (wallOutlineSegmentsMeters,
+  // åpnings-jamb/leaf/bue-matte, rom-etiketter, mål- og rutenett-matte) — bare skrevet som
+  // DXF-gruppekoder i stedet for XML. $INSUNITS settes til meter, så importen får riktig
+  // fysisk skala automatisk, akkurat som mm-triksen for SVG/Blender.
+  //
+  // Forenkling: mål og rutenett skrives som "dumme" LINE+TEXT (ikke ekte parametriske
+  // DXF DIMENSION-entiteter, som krever en skjult BLOCK-definisjon per mål og er langt lettere
+  // å gjøre feil på uten en ekte CAD å validere mot). Vegger/åpninger blir ekte
+  // LWPOLYLINE/LINE/ARC på egne lag — det er der snap-verdien faktisk ligger.
+  //
+  // DXF bruker Y opp (matematisk konvensjon), mens vår interne meter-modell (og SVG-eksporten)
+  // bruker Y ned (skjerm-konvensjon). Alle koordinater speiles derfor i Y ved selve
+  // utskrivingen (kun der — all posisjonsmatte over gjøres i original Y-ned-rom) slik at
+  // planen ser riktig vei opp ut i AutoCAD/Revit, ikke speilvendt.
+
+  function escapeDxfText(s){
+    return String(s == null ? "" : s)
+      .replace(/\\/g, "\\\\")
+      .replace(/²/g, "2"); // superscript-2 mangler i CAD-skriftsnittenes tegnsett (bekreftet i Autodesk Viewer)
+  }
+
+  async function exportDXF(){
+    const out = [];
+    const g = (code, value) => { out.push(String(code), String(value)); };
+    const Y = y => -y; // Y-ned (vår modell) -> Y-opp (DXF/CAD-konvensjon)
+
+    // R12/AC1009 — eldste og mest universelt kompatible DXF-versjon. Ingen handle/objekt-
+    // dictionary-maskineri (som AC1015 forventer og som fikk Autodesks egen oversetter til å
+    // avvise første forsøk), ingen LWPOLYLINE (introdusert i R14) — bruker klassisk
+    // POLYLINE/VERTEX/SEQEND i stedet. $INSUNITS finnes ikke i R12, så mottaker-programmet
+    // må få vite at det er meter manuelt ved import (de aller fleste CAD-import-dialoger har
+    // et eksplisitt enhetsvalg for nettopp dette).
+    g(0,"SECTION"); g(2,"HEADER");
+    g(9,"$ACADVER"); g(1,"AC1009");
+    g(0,"ENDSEC");
+
+    g(0,"SECTION"); g(2,"TABLES");
+    g(0,"TABLE"); g(2,"LTYPE"); g(70,1);
+    g(0,"LTYPE"); g(2,"CONTINUOUS"); g(70,0); g(3,"Solid line"); g(72,65); g(73,0); g(40,"0.0");
+    g(0,"ENDTAB");
+    g(0,"TABLE"); g(2,"LAYER"); g(70,5);
+    const layerDef = (name, color) => { g(0,"LAYER"); g(2,name); g(70,0); g(62,color); g(6,"CONTINUOUS"); };
+    layerDef("VEGGER", 7);
+    layerDef("APNINGER", 1);
+    layerDef("ROM", 3);
+    layerDef("MAL", 5);
+    layerDef("RUTENETT", 4);
+    g(0,"ENDTAB"); g(0,"ENDSEC");
+
+    g(0,"SECTION"); g(2,"BLOCKS"); g(0,"ENDSEC");
+
+    g(0,"SECTION"); g(2,"ENTITIES");
+
+    const dxfLine = (layer, x1,y1,x2,y2) => {
+      g(0,"LINE"); g(8,layer);
+      g(10,x1.toFixed(4)); g(20,Y(y1).toFixed(4)); g(30,"0");
+      g(11,x2.toFixed(4)); g(21,Y(y2).toFixed(4)); g(31,"0");
+    };
+    const dxfText = (layer, x, y, height, str) => {
+      g(0,"TEXT"); g(8,layer);
+      g(10,x.toFixed(4)); g(20,Y(y).toFixed(4)); g(30,"0");
+      g(40,height.toFixed(3));
+      g(1,escapeDxfText(str));
+    };
+
+    // ---- Vegger: samme kuttede polygoner som SVG-eksporten ----
+    // POLYLINE/VERTEX/SEQEND (ikke LWPOLYLINE, som ikke finnes i R12).
+    interiorWalls.forEach(w => {
+      wallOutlineSegmentsMeters(w).forEach(poly => {
+        g(0,"POLYLINE"); g(8,"VEGGER"); g(66,1); g(70,1); // 66=vertekser følger, 70=1 -> lukket
+        poly.forEach(p => {
+          g(0,"VERTEX"); g(8,"VEGGER");
+          g(10,p.x.toFixed(4)); g(20,Y(p.y).toFixed(4)); g(30,"0");
+        });
+        g(0,"SEQEND"); g(8,"VEGGER");
+      });
+    });
+
+    // ---- Åpninger: jamb-linjer + dørsving-bue / vindusstreker ----
+    openings.forEach(op => {
+      const w = interiorWalls.find(x => x.id===op.wallId);
+      if(!w) return;
+      const dx=w.x2-w.x1, dy=w.y2-w.y1, len=Math.hypot(dx,dy)||0.0001;
+      const ux=dx/len, uy=dy/len, nx=-uy, ny=ux, half=w.t/2;
+      const s = Math.min(Math.max(op.s, op.width/2), Math.max(len-op.width/2, op.width/2));
+      const ax=w.x1+ux*(s-op.width/2), ay=w.y1+uy*(s-op.width/2);
+      const bx=w.x1+ux*(s+op.width/2), by=w.y1+uy*(s+op.width/2);
+
+      dxfLine("APNINGER", ax+nx*half, ay+ny*half, ax-nx*half, ay-ny*half);
+      dxfLine("APNINGER", bx+nx*half, by+ny*half, bx-nx*half, by-ny*half);
+
+      if(op.type === "door"){
+        const atB = op.hingeEnd === "2";
+        const hinge = atB ? {x:bx,y:by} : {x:ax,y:ay};
+        const otherJamb = atB ? {x:ax,y:ay} : {x:bx,y:by};
+        const sign = op.flip ? -1 : 1;
+        const leafTip = { x: hinge.x + nx*sign*op.width, y: hinge.y + ny*sign*op.width };
+        dxfLine("APNINGER", hinge.x, hinge.y, leafTip.x, leafTip.y);
+
+        // Vinkler regnes i EKSPORT-rommet (Y allerede speilet), siden det er det DXF faktisk lagrer.
+        const cx = hinge.x, cyExp = Y(hinge.y);
+        const a1 = Math.atan2(Y(otherJamb.y)-cyExp, otherJamb.x-cx) * 180/Math.PI;
+        const a2 = Math.atan2(Y(leafTip.y)-cyExp, leafTip.x-cx) * 180/Math.PI;
+        g(0,"ARC"); g(8,"APNINGER");
+        g(10,cx.toFixed(4)); g(20,cyExp.toFixed(4)); g(30,"0");
+        g(40, op.width.toFixed(4));
+        g(50, ((a1+360)%360).toFixed(2));
+        g(51, ((a2+360)%360).toFixed(2));
+      } else {
+        [-1,1].forEach(side => {
+          const off = half*0.35*side;
+          dxfLine("APNINGER", ax+nx*off, ay+ny*off, bx+nx*off, by+ny*off);
+        });
+      }
+    });
+
+    // ---- Rom: navn + areal som tekst ----
+    spaces.forEach(sp => {
+      const m = worldPxToRoomMeters(sp.labelX, sp.labelY);
+      const area = sp.areaM2 != null ? fmtArea(sp.areaM2) : "";
+      dxfText("ROM", m.x, m.y, 0.13, sp.name || "");
+      dxfText("ROM", m.x, m.y + 0.18, 0.10, area);
+    });
+
+    // ---- Mål: enkle streker + tekst (ikke parametriske DIMENSION-entiteter) ----
+    dimensions.forEach(d => {
+      const dx=d.x2-d.x1, dy=d.y2-d.y1, len=Math.hypot(dx,dy)||0.0001;
+      const ux=dx/len, uy=dy/len, nx=-uy, ny=ux;
+      let off = d.offset;
+      if(Math.abs(off) < 0.02) off = off<0 ? -0.02 : 0.02;
+      const d1={x:d.x1+nx*off,y:d.y1+ny*off}, d2={x:d.x2+nx*off,y:d.y2+ny*off};
+      const overshoot = Math.sign(off)*0.03;
+      const e1={x:d.x1+nx*(off+overshoot),y:d.y1+ny*(off+overshoot)};
+      const e2={x:d.x2+nx*(off+overshoot),y:d.y2+ny*(off+overshoot)};
+      dxfLine("MAL", d.x1,d.y1,e1.x,e1.y);
+      dxfLine("MAL", d.x2,d.y2,e2.x,e2.y);
+      dxfLine("MAL", d1.x,d1.y,d2.x,d2.y);
+      const mid={x:(d1.x+d2.x)/2+nx*0.07,y:(d1.y+d2.y)/2+ny*0.07};
+      dxfText("MAL", mid.x, mid.y, 0.09, formatLength(len));
+    });
+
+    // ---- Rutenett: linjer som spenner over bygningen + boble/etikett i hver ende ----
+    const b = computeContentBoundsMeters();
+    archGridLines.forEach(gl => {
+      let x1,y1,x2,y2;
+      if(gl.axis === "y"){ x1=gl.pos; y1=b.minY+0.3; x2=gl.pos; y2=b.maxY-0.3; }
+      else { x1=b.minX+0.3; y1=gl.pos; x2=b.maxX-0.3; y2=gl.pos; }
+      dxfLine("RUTENETT", x1,y1,x2,y2);
+      [[x1,y1],[x2,y2]].forEach(([cx,cy]) => {
+        g(0,"CIRCLE"); g(8,"RUTENETT");
+        g(10,cx.toFixed(4)); g(20,Y(cy).toFixed(4)); g(30,"0");
+        g(40, "0.14");
+        dxfText("RUTENETT", cx-0.05, cy+0.05, 0.14, gl.label);
+      });
+    });
+
+    g(0,"ENDSEC");
+    g(0,"EOF");
+
+    const dxf = out.join("\r\n") + "\r\n";
+    // R12-lesere forventer tekst i lokal ANSI-kodeside (Windows-1252), ikke UTF-8. æøå/² ligger
+    // heldigvis på samme kodepunkt i både Unicode og Windows-1252 (0x00–0xFF), så vi kan bygge
+    // byte-arrayet direkte fra charCodeAt i stedet for å la Blob UTF-8-kode strengen automatisk.
+    const bytes = new Uint8Array(dxf.length);
+    for(let i=0; i<dxf.length; i++){
+      const code = dxf.charCodeAt(i);
+      bytes[i] = code <= 255 ? code : 0x3F; // '?' for tegn utenfor Latin-1/ANSI-området
+    }
+    const blob = new Blob([bytes], { type:"application/dxf" });
+    const stamp = new Date().toISOString().slice(0,10);
+    await saveBlob(blob, "drawplan_" + stamp + ".dxf", "Drawplan DXF", "application/dxf", ".dxf");
+  }
+  document.getElementById("btnExportDXF").addEventListener("click", exportDXF);
 
 
   // ---------- Tegning ----------
