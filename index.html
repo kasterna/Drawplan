@@ -298,6 +298,23 @@
     padding:4px 5px; text-align:right;
   }
   .opening-edit-overlay input[type="number"]:focus{ outline:none; border-color:var(--accent); }
+
+  .wall-info-overlay{
+    position:absolute; z-index:20; display:none;
+    transform:translate(-50%,-100%);
+    flex-direction:column; gap:3px;
+    background:var(--surface);
+    border:1px solid var(--accent);
+    border-radius:10px;
+    padding:8px 10px;
+    box-shadow:0 8px 20px rgba(0,0,0,0.5);
+    font-family:var(--mono); font-size:11px;
+    pointer-events:none;
+    white-space:nowrap;
+  }
+  .wall-info-overlay .wall-info-row{ display:flex; justify-content:space-between; gap:14px; }
+  .wall-info-overlay .wall-info-label{ color:var(--text-faint); }
+  .wall-info-overlay .wall-info-value{ color:var(--text); }
   #btnDeleteOpening:hover{ background:var(--danger-soft); color:var(--danger); }
 
   .measure-ext{ stroke:var(--text-faint); stroke-width:0.7; vector-effect:non-scaling-stroke; }
@@ -642,6 +659,7 @@
     <button class="icon-btn" id="btnLoad" title="Open file" aria-label="Open">⭱</button>
     <button class="icon-btn" id="btnExport" title="Export as image (PNG)" aria-label="Export as image">▤</button>
     <button class="icon-btn" id="btnExportPDF" title="Export as vector PDF (1:1 scale)" aria-label="Export as vector PDF">⬡</button>
+    <button class="icon-btn" id="btnExportSVG" title="Export as SVG (true scale, snappable in Blender/CAD)" aria-label="Export as SVG" style="font-size:10px;font-family:var(--mono);font-weight:600;">SVG</button>
     <div class="divider"></div>
     <select id="unitSelect" class="unit-select" title="Unit" aria-label="Unit">
       <option value="mm" selected>MM</option>
@@ -683,6 +701,8 @@
     <div class="divider"></div>
     <button class="icon-btn" id="btnDeleteOpening" title="Delete" aria-label="Delete">×</button>
   </div>
+
+  <div class="wall-info-overlay" id="wallInfoOverlay"></div>
 
   <div class="draw-length-overlay" id="drawLengthOverlay">
     <input type="text" id="drawLengthInput" inputmode="decimal" autocomplete="off" spellcheck="false">
@@ -1436,8 +1456,64 @@
     });
   }
 
+  // Finner nærmeste tilnærmet parallelle vegg på hver side av wallData
+  // (brukes til å vise avstand til "sideveggene" mens man flytter en vegg).
+  function findFlankingWalls(wallData){
+    const dx = wallData.x2-wallData.x1, dy = wallData.y2-wallData.y1;
+    const len = Math.hypot(dx,dy) || 0.0001;
+    const ux = dx/len, uy = dy/len, nx = -uy, ny = ux;
+    let pos = null, neg = null;
+    interiorWalls.forEach(w => {
+      if(w.id === wallData.id) return;
+      const wdx = w.x2-w.x1, wdy = w.y2-w.y1, wlen = Math.hypot(wdx,wdy) || 0.0001;
+      const wux = wdx/wlen, wuy = wdy/wlen;
+      if(Math.abs(ux*wuy - uy*wux) > 0.12) return; // ikke tilnærmet parallell (~7°)
+
+      const offset = (w.x1-wallData.x1)*nx + (w.y1-wallData.y1)*ny;
+
+      // Krev litt overlapp langs veggens egen lengdeakse — ellers er det ikke en reell "sidevegg"
+      const s1 = (w.x1-wallData.x1)*ux + (w.y1-wallData.y1)*uy;
+      const s2 = (w.x2-wallData.x1)*ux + (w.y2-wallData.y1)*uy;
+      const lo = Math.min(s1,s2), hi = Math.max(s1,s2);
+      if(Math.min(hi,len) - Math.max(lo,0) < len*0.15) return;
+
+      if(offset >= 0){ if(!pos || offset < pos.offset) pos = { wall:w, offset }; }
+      else { if(!neg || offset > neg.offset) neg = { wall:w, offset }; }
+    });
+    return { pos, neg, ux, uy, nx, ny, len };
+  }
+
+  // Viser midlertidige mållinjer til begge sideveggene mens man flytter wallData
+  // (samme visuelle språk/lag som "midlertidige mål ved plassering av dør/vindu").
+  function renderWallMovePreviewDims(wallData){
+    while(openingPreviewLayer.firstChild) openingPreviewLayer.removeChild(openingPreviewLayer.firstChild);
+    const f = findFlankingWalls(wallData);
+    const drawSide = (side, alongFrac) => {
+      if(!side) return;
+      const sign = Math.sign(side.offset) || 1;
+      const px = wallData.x1 + f.ux*(f.len*alongFrac), py = wallData.y1 + f.uy*(f.len*alongFrac);
+      const qx = px + f.nx*side.offset, qy = py + f.ny*side.offset;
+      // Trekk inn fra senterlinje til nærmeste flate på begge vegger — netto klaring, ikke senter-til-senter.
+      const nearX = px + f.nx*sign*(wallData.t/2), nearY = py + f.ny*sign*(wallData.t/2);
+      const farX  = qx - f.nx*sign*(side.wall.t/2), farY  = qy - f.ny*sign*(side.wall.t/2);
+      const distM = Math.max(0, Math.abs(side.offset) - wallData.t/2 - side.wall.t/2);
+      const p1 = roomMetersToWorldPx(nearX, nearY);
+      const p2 = roomMetersToWorldPx(farX, farY);
+      const grp = buildDimensionGroup(p1, p2, 0, distM, false, null);
+      openingPreviewLayer.appendChild(grp);
+    };
+    drawSide(f.pos, 0.33);
+    drawSide(f.neg, 0.66);
+  }
+
   function attachInteractionHandlers(fillEl, wallData){
     fillEl.addEventListener("pointerdown", (e)=>{
+      if(activeTool === "pan"){
+        e.stopPropagation();
+        selectedObject = { type:"wall", id: wallData.id };
+        renderSelectionRing();
+        return;
+      }
       if(activeTool === "erase"){
         e.stopPropagation();
         pushUndo();
@@ -1489,12 +1565,14 @@
           renderOpenings();
           updateHighlight();
           renderEditHandles();
+          renderWallMovePreviewDims(wallData);
         };
         const onUp = (ev)=>{
           fillEl.releasePointerCapture(ev.pointerId);
           fillEl.removeEventListener("pointermove", onMove);
           fillEl.removeEventListener("pointerup", onUp);
           if(moved) recomputeSpaces();
+          while(openingPreviewLayer.firstChild) openingPreviewLayer.removeChild(openingPreviewLayer.firstChild);
           renderInteriorWalls();
         };
         fillEl.addEventListener("pointermove", onMove);
@@ -1968,6 +2046,12 @@
 
     if(dimData){
       g.addEventListener("pointerdown", (e)=>{
+        if(activeTool === "pan"){
+          e.stopPropagation();
+          selectedObject = { type:"dimension", id: dimData.id };
+          renderSelectionRing();
+          return;
+        }
         if(activeTool !== "erase") return;
         e.stopPropagation();
         pushUndo();
@@ -2106,17 +2190,13 @@
       const lenM = pair.to - pair.from;
       let p1px, p2px;
       if(axis === "y"){
-        // Midtpunkt langs tegningens faktiske utstrekning (ikke hardkodet romstørrelse)
-        const midW = roomMetersToWorldPx((g.axis === "y" ? 0 : (pair.from+pair.to)/2), 0);
-        if(g.axis === "y"){
-          const midY = originY + outerH/2;  // midten langs Y-aksen av standardrommet
-          p1px = { x: originX + pair.from*M, y: midY };
-          p2px = { x: originX + pair.to*M,   y: midY };
-        } else {
-          const midX = originX + outerW/2;
-          p1px = { x: midX, y: originY + pair.from*M };
-          p2px = { x: midX, y: originY + pair.to*M };
-        }
+        const midY = originY + outerH/2;  // midten langs Y-aksen av standardrommet
+        p1px = { x: originX + pair.from*M, y: midY };
+        p2px = { x: originX + pair.to*M,   y: midY };
+      } else {
+        const midX = originX + outerW/2;
+        p1px = { x: midX, y: originY + pair.from*M };
+        p2px = { x: midX, y: originY + pair.to*M };
       }
       const g2 = buildDimensionGroup(p1px, p2px, dimOffset, lenM, false, null);
       g2.style.opacity = "0.8";
@@ -2201,8 +2281,11 @@
       grp.appendChild(lineEl);
 
       // Klikk-flate langs hovdlinjen
+      // Bred, lettgripelig gripeflate kun når Gridlines-verktøyet faktisk er aktivt (til dra-i-linja).
+      // Ellers smal, så den ikke overskygger vegger som ligger tett inntil gridlinja (f.eks. i select-modus).
+      const hitWidth = (activeTool === "gridline" ? 28 : 6) / view.k;
       const hitLine = el("line", { x1:ax1, y1:ay1, x2:ax2, y2:ay2,
-        stroke:"transparent", "stroke-width": 28/view.k });
+        stroke:"transparent", "stroke-width": hitWidth });
       hitLine.style.cursor = isLocked ? "not-allowed" : "grab";
       attachGridLineBodyHandler(hitLine, g);
       grp.appendChild(hitLine);
@@ -2302,6 +2385,12 @@
 
   function attachGridLineBodyHandler(hitEl, g){
     hitEl.addEventListener("pointerdown", (e)=>{
+      if(activeTool === "pan"){
+        e.stopPropagation();
+        selectedObject = { type:"gridline", id: g.id };
+        renderSelectionRing();
+        return;
+      }
       if(activeTool !== "gridline" && activeTool !== "erase") return;
       e.stopPropagation();
       if(activeTool === "erase"){
@@ -2345,6 +2434,11 @@
   function attachGridLineBubbleHandler(bgrp, g){
     bgrp.addEventListener("pointerdown", (e)=>{
       e.stopPropagation();
+      if(activeTool === "pan"){
+        selectedObject = { type:"gridline", id: g.id };
+        renderSelectionRing();
+        return;
+      }
       if(activeTool === "erase"){
         if(g.locked){ showSpaceHint(e.clientX, e.clientY, "GRID LINE IS LOCKED"); return; }
         pushUndo();
@@ -2670,6 +2764,206 @@
     });
   }
   document.getElementById("btnExportPDF").addEventListener("click", exportPDF);
+
+  // ---------- Eksporter som SVG (ekte skala, snappbar i Blender/CAD) ----------
+  // Blenders innebygde SVG-importer (File > Import > Scalable Vector Graphics) leser kun
+  // ekte geometri (path/polygon/line/circle) inn som Curve-objekter med reelle vertekser —
+  // <text> hoppes stille over. Dermed kan alt (vegger, åpninger, mål, rutenett, romnavn)
+  // ligge i samme fil: geometrien blir snappbar i Blender, teksten vises bare i nettleser/CAD.
+  // Filen skrives i mm (width/height med "mm"-enhet), som gjør at Blender importerer i riktig
+  // fysisk målestokk automatisk (1000 mm i SVG = 1 m i Blender) — verifisert testimport.
+
+  function escapeXml(s){
+    return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&apos;" }[c]));
+  }
+
+  function computeContentBoundsMeters(){
+    let minX=Infinity, minY=Infinity, maxX=-Infinity, maxY=-Infinity, any=false;
+    const grow = (x,y) => {
+      if(x<minX) minX=x; if(x>maxX) maxX=x;
+      if(y<minY) minY=y; if(y>maxY) maxY=y;
+      any = true;
+    };
+    interiorWalls.forEach(w => {
+      const pad = w.t/2 + 0.05;
+      grow(w.x1-pad, w.y1-pad); grow(w.x1+pad, w.y1+pad);
+      grow(w.x2-pad, w.y2-pad); grow(w.x2+pad, w.y2+pad);
+    });
+    dimensions.forEach(d => {
+      const dx=d.x2-d.x1, dy=d.y2-d.y1, len=Math.hypot(dx,dy)||0.0001;
+      const nx=-dy/len, ny=dx/len, off=d.offset;
+      grow(d.x1+nx*off, d.y1+ny*off); grow(d.x2+nx*off, d.y2+ny*off);
+    });
+    spaces.forEach(sp => {
+      const m = worldPxToRoomMeters(sp.labelX, sp.labelY);
+      grow(m.x, m.y);
+    });
+    if(!any){ minX=0; minY=0; maxX=5; maxY=5; }
+    const margin = 0.8; // meter — plass til mål, romnavn og rutenett-bobler
+    return { minX:minX-margin, minY:minY-margin, maxX:maxX+margin, maxY:maxY+margin };
+  }
+
+  // Deler en vegg i separate rektangel-polygoner, kuttet ved hver dør/vindusåpning
+  // (ekte geometrisk hull, ikke bare visuell maskering slik skjermtegningen gjør det).
+  // Endene får samme gjæringsforlengelse (t/2) som wallPolygonPoints — kun ved veggens
+  // faktiske ytterpunkt, ikke ved et kutt mot en åpning.
+  function wallOutlineSegmentsMeters(w){
+    const dx=w.x2-w.x1, dy=w.y2-w.y1;
+    const len=Math.hypot(dx,dy)||0.0001;
+    const ux=dx/len, uy=dy/len, nx=-uy, ny=ux, half=w.t/2;
+    const cuts = openings.filter(o => o.wallId===w.id).map(o => {
+      const c0=Math.max(0,o.s-o.width/2), c1=Math.min(len,o.s+o.width/2);
+      return [c0,c1];
+    }).sort((a,b)=>a[0]-b[0]);
+    const segs=[]; let cursor=0;
+    cuts.forEach(([c0,c1]) => {
+      if(c0>cursor+1e-6) segs.push([cursor,c0]);
+      cursor=Math.max(cursor,c1);
+    });
+    if(cursor<len-1e-6) segs.push([cursor,len]);
+    return segs.map(([s0,s1]) => {
+      const extStart = s0<=1e-6 ? half:0, extEnd = s1>=len-1e-6 ? half:0;
+      const ax=w.x1+ux*(s0-extStart), ay=w.y1+uy*(s0-extStart);
+      const bx=w.x1+ux*(s1+extEnd),   by=w.y1+uy*(s1+extEnd);
+      return [
+        { x:ax+nx*half, y:ay+ny*half },
+        { x:bx+nx*half, y:by+ny*half },
+        { x:bx-nx*half, y:by-ny*half },
+        { x:ax-nx*half, y:ay-ny*half },
+      ];
+    });
+  }
+
+  function exportSVG(){
+    const b = computeContentBoundsMeters();
+    const Wmm = (b.maxX-b.minX)*1000, Hmm = (b.maxY-b.minY)*1000;
+    const mx = x => (x-b.minX)*1000;
+    const my = y => (y-b.minY)*1000;
+    const f = n => n.toFixed(1);
+    const pt = (x,y) => `${f(mx(x))},${f(my(y))}`;
+    const line = (x1,y1,x2,y2,cls) => `<line x1="${f(mx(x1))}" y1="${f(my(y1))}" x2="${f(mx(x2))}" y2="${f(my(y2))}" class="${cls}"/>\n`;
+
+    let wallsSvg = "";
+    interiorWalls.forEach(w => {
+      wallOutlineSegmentsMeters(w).forEach((poly, i) => {
+        wallsSvg += `<polygon id="wall-${escapeXml(w.id)}-${i}" points="${poly.map(p=>pt(p.x,p.y)).join(" ")}" class="wall"/>\n`;
+      });
+    });
+
+    let openingsSvg = "";
+    openings.forEach(op => {
+      const w = interiorWalls.find(x => x.id===op.wallId);
+      if(!w) return;
+      const dx=w.x2-w.x1, dy=w.y2-w.y1, len=Math.hypot(dx,dy)||0.0001;
+      const ux=dx/len, uy=dy/len, nx=-uy, ny=ux, half=w.t/2;
+      const s = Math.min(Math.max(op.s, op.width/2), Math.max(len-op.width/2, op.width/2));
+      const ax=w.x1+ux*(s-op.width/2), ay=w.y1+uy*(s-op.width/2);
+      const bx=w.x1+ux*(s+op.width/2), by=w.y1+uy*(s+op.width/2);
+
+      [[ax,ay],[bx,by]].forEach(([px,py]) => {
+        openingsSvg += line(px+nx*half, py+ny*half, px-nx*half, py-ny*half, "op-jamb");
+      });
+
+      if(op.type === "door"){
+        const atB = op.hingeEnd === "2";
+        const hinge = atB ? {x:bx,y:by} : {x:ax,y:ay};
+        const otherJamb = atB ? {x:ax,y:ay} : {x:bx,y:by};
+        const sign = op.flip ? -1 : 1;
+        const leafTip = { x: hinge.x + nx*sign*op.width, y: hinge.y + ny*sign*op.width };
+        openingsSvg += `<line id="door-${escapeXml(op.id)}-leaf" x1="${f(mx(hinge.x))}" y1="${f(my(hinge.y))}" x2="${f(mx(leafTip.x))}" y2="${f(my(leafTip.y))}" class="op-leaf"/>\n`;
+        const cross = (otherJamb.x-hinge.x)*(leafTip.y-hinge.y) - (otherJamb.y-hinge.y)*(leafTip.x-hinge.x);
+        const sweep = cross > 0 ? 1 : 0;
+        openingsSvg += `<path id="door-${escapeXml(op.id)}-arc" d="M ${pt(otherJamb.x,otherJamb.y)} A ${f(op.width*1000)},${f(op.width*1000)} 0 0,${sweep} ${pt(leafTip.x,leafTip.y)}" class="op-arc" fill="none"/>\n`;
+      } else {
+        [-1,1].forEach(side => {
+          const off = half*0.35*side;
+          openingsSvg += line(ax+nx*off, ay+ny*off, bx+nx*off, by+ny*off, "op-pane");
+        });
+      }
+    });
+
+    let roomsSvg = "";
+    spaces.forEach(sp => {
+      const m = worldPxToRoomMeters(sp.labelX, sp.labelY);
+      const area = sp.areaM2 != null ? fmtArea(sp.areaM2) : "";
+      roomsSvg += `<text x="${f(mx(m.x))}" y="${f(my(m.y))}" class="room-name" text-anchor="middle">${escapeXml(sp.name||"")}</text>\n`;
+      roomsSvg += `<text x="${f(mx(m.x))}" y="${f(my(m.y)+180)}" class="room-area" text-anchor="middle">${escapeXml(area)}</text>\n`;
+    });
+
+    let dimsSvg = "";
+    dimensions.forEach(d => {
+      const dx=d.x2-d.x1, dy=d.y2-d.y1, len=Math.hypot(dx,dy)||0.0001;
+      const ux=dx/len, uy=dy/len, nx=-uy, ny=ux;
+      let off = d.offset;
+      if(Math.abs(off) < 0.02) off = off<0 ? -0.02 : 0.02;
+      const d1={x:d.x1+nx*off,y:d.y1+ny*off}, d2={x:d.x2+nx*off,y:d.y2+ny*off};
+      const overshoot = Math.sign(off)*0.03;
+      const e1={x:d.x1+nx*(off+overshoot),y:d.y1+ny*(off+overshoot)};
+      const e2={x:d.x2+nx*(off+overshoot),y:d.y2+ny*(off+overshoot)};
+      dimsSvg += line(d.x1,d.y1,e1.x,e1.y,"dim-ext");
+      dimsSvg += line(d.x2,d.y2,e2.x,e2.y,"dim-ext");
+      dimsSvg += line(d1.x,d1.y,d2.x,d2.y,"dim-line");
+      const tick=0.03;
+      [d1,d2].forEach(p => {
+        dimsSvg += line(p.x-(ux-nx)*tick*0.5, p.y-(uy-ny)*tick*0.5, p.x+(ux-nx)*tick*0.5, p.y+(uy-ny)*tick*0.5, "dim-tick");
+      });
+      const mid={x:(d1.x+d2.x)/2+nx*0.07,y:(d1.y+d2.y)/2+ny*0.07};
+      dimsSvg += `<text x="${f(mx(mid.x))}" y="${f(my(mid.y))}" class="dim-text" text-anchor="middle">${escapeXml(formatLength(len))}</text>\n`;
+    });
+
+    let gridSvg = "";
+    archGridLines.forEach(g => {
+      let x1,y1,x2,y2;
+      if(g.axis === "y"){ x1=g.pos; y1=b.minY+0.3; x2=g.pos; y2=b.maxY-0.3; }
+      else { x1=b.minX+0.3; y1=g.pos; x2=b.maxX-0.3; y2=g.pos; }
+      gridSvg += line(x1,y1,x2,y2,"grid-line");
+      const r=140;
+      [[x1,y1],[x2,y2]].forEach(([gx,gy], i) => {
+        gridSvg += `<circle id="grid-${escapeXml(g.id)}-${i}" cx="${f(mx(gx))}" cy="${f(my(gy))}" r="${r}" class="grid-bubble"/>\n`;
+        gridSvg += `<text x="${f(mx(gx))}" y="${f(my(gy))}" class="grid-label" text-anchor="middle" dominant-baseline="central">${escapeXml(g.label)}</text>\n`;
+      });
+    });
+
+    const style = `
+      .wall{ fill:#d8d8d8; stroke:#000; stroke-width:2; }
+      .op-jamb, .op-leaf, .op-arc, .op-pane{ stroke:#000; stroke-width:2; fill:none; }
+      .room-name{ font:600 130px sans-serif; fill:#000; }
+      .room-area{ font:400 100px sans-serif; fill:#555; }
+      .dim-ext, .dim-line, .dim-tick{ stroke:#c0392b; stroke-width:1.5; }
+      .dim-text{ font:400 90px monospace; fill:#c0392b; }
+      .grid-line{ stroke:#2980b9; stroke-width:1.5; stroke-dasharray:120 40 20 40; }
+      .grid-bubble{ stroke:#2980b9; stroke-width:2; fill:#fff; }
+      .grid-label{ font:600 140px monospace; fill:#2980b9; }
+    `;
+
+    const svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${f(Wmm)}mm" height="${f(Hmm)}mm" viewBox="0 0 ${f(Wmm)} ${f(Hmm)}">
+<style>${style}</style>
+<g id="walls">
+${wallsSvg}</g>
+<g id="openings">
+${openingsSvg}</g>
+<g id="rooms">
+${roomsSvg}</g>
+<g id="dimensions">
+${dimsSvg}</g>
+<g id="grid">
+${gridSvg}</g>
+</svg>
+`;
+
+    const blob = new Blob([svg], { type:"image/svg+xml" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    const stamp = new Date().toISOString().slice(0,10);
+    a.download = "drawplan_" + stamp + ".svg";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+  document.getElementById("btnExportSVG").addEventListener("click", exportSVG);
 
 
   // ---------- Tegning ----------
@@ -3078,6 +3372,7 @@
     setDrawLengthValue("");
     drawLengthUserEdited = false;
     clearTrackingLines();
+    while(openingPreviewLayer.firstChild) openingPreviewLayer.removeChild(openingPreviewLayer.firstChild);
     renderInteriorWalls();
   }
 
@@ -3244,6 +3539,12 @@
       g.appendChild(del);
 
       [nameText, areaText, ...(sp.floorType ? [g.querySelector(".space-floor-type")] : [])].filter(Boolean).forEach(t => t.addEventListener("pointerdown", (e)=>{
+        if(activeTool === "pan"){
+          e.stopPropagation();
+          selectedObject = { type:"space", id: sp.id };
+          renderSelectionRing();
+          return;
+        }
         if(activeTool !== "space") return;
         e.stopPropagation();
         const client = worldToClient(sp.labelX, sp.labelY);
@@ -3498,8 +3799,97 @@
     renderSelectionRing();
   }
 
+  const wallInfoOverlay = document.getElementById("wallInfoOverlay");
+
+  function infoRow(label, value){
+    return `<div class="wall-info-row"><span class="wall-info-label">${label}</span><span class="wall-info-value">${value}</span></div>`;
+  }
+
+  function showInfoOverlayAt(worldX, worldY, rowsHtml){
+    const client = worldToClient(worldX, worldY - 20);
+    wallInfoOverlay.style.left = client.x + "px";
+    wallInfoOverlay.style.top = client.y + "px";
+    wallInfoOverlay.style.display = "flex";
+    wallInfoOverlay.innerHTML = rowsHtml;
+  }
+
+  // Viser en flytende infoboks for det som er valgt i select-modus (vegg, åpning, rom, gridlinje).
+  function updateInfoOverlay(){
+    if(!selectedObject){ wallInfoOverlay.style.display = "none"; return; }
+
+    if(selectedObject.type === "wall"){
+      const w = interiorWalls.find(x => x.id === selectedObject.id);
+      if(!w){ wallInfoOverlay.style.display = "none"; return; }
+      const lenM = Math.hypot(w.x2-w.x1, w.y2-w.y1);
+      const mid = roomMetersToWorldPx((w.x1+w.x2)/2, (w.y1+w.y2)/2);
+      showInfoOverlayAt(mid.x, mid.y,
+        infoRow("ID", w.id) +
+        infoRow("Lengde", formatLength(lenM)) +
+        infoRow("Tykkelse", formatLength(w.t)) +
+        infoRow("Start", `${w.x1.toFixed(2)}, ${w.y1.toFixed(2)} m`) +
+        infoRow("Slutt", `${w.x2.toFixed(2)}, ${w.y2.toFixed(2)} m`));
+      return;
+    }
+
+    if(selectedObject.type === "opening"){
+      const op = openings.find(o => o.id === selectedObject.id);
+      if(!op){ wallInfoOverlay.style.display = "none"; return; }
+      const w = interiorWalls.find(x => x.id === op.wallId);
+      if(!w){ wallInfoOverlay.style.display = "none"; return; }
+      const g = wallGeometryPx(w);
+      const sPx = op.s*M;
+      const midX = g.p1.x + g.ux*sPx, midY = g.p1.y + g.uy*sPx;
+      showInfoOverlayAt(midX, midY,
+        infoRow("ID", op.id) +
+        infoRow("Type", op.type === "door" ? "Dør" : "Vindu") +
+        infoRow("Bredde", formatLength(op.width)) +
+        infoRow("Vegg", op.wallId) +
+        infoRow("Posisjon", formatLength(op.s) + " fra start"));
+      return;
+    }
+
+    if(selectedObject.type === "space"){
+      const sp = spaces.find(x => x.id === selectedObject.id);
+      if(!sp){ wallInfoOverlay.style.display = "none"; return; }
+      showInfoOverlayAt(sp.labelX, sp.labelY,
+        infoRow("ID", sp.id) +
+        infoRow("Navn", sp.name || "–") +
+        infoRow("Areal", fmtArea(sp.areaM2)) +
+        infoRow("Gulvtype", sp.floorType || "–"));
+      return;
+    }
+
+    if(selectedObject.type === "gridline"){
+      const g = archGridLines.find(x => x.id === selectedObject.id);
+      if(!g){ wallInfoOverlay.style.display = "none"; return; }
+      const bp = gridLineBubblePos(g)[0];
+      showInfoOverlayAt(bp.x, bp.y,
+        infoRow("ID", g.id) +
+        infoRow("Etikett", g.label) +
+        infoRow("Akse", g.axis === "y" ? "Vertikal (tall)" : "Horisontal (bokstav)") +
+        infoRow("Posisjon", formatLength(g.pos)));
+      return;
+    }
+
+    if(selectedObject.type === "dimension"){
+      const d = dimensions.find(x => x.id === selectedObject.id);
+      if(!d){ wallInfoOverlay.style.display = "none"; return; }
+      const lenM = Math.hypot(d.x2-d.x1, d.y2-d.y1);
+      const mid = roomMetersToWorldPx((d.x1+d.x2)/2, (d.y1+d.y2)/2);
+      showInfoOverlayAt(mid.x, mid.y,
+        infoRow("ID", d.id) +
+        infoRow("Lengde", formatLength(lenM)) +
+        infoRow("Start", `${d.x1.toFixed(2)}, ${d.y1.toFixed(2)} m`) +
+        infoRow("Slutt", `${d.x2.toFixed(2)}, ${d.y2.toFixed(2)} m`));
+      return;
+    }
+
+    wallInfoOverlay.style.display = "none";
+  }
+
   function renderSelectionRing(){
     while(highlightLayer.firstChild) highlightLayer.removeChild(highlightLayer.firstChild);
+    updateInfoOverlay();
     if(!selectedObject) return;
     if(selectedObject.type === "opening"){
       const op = openings.find(o => o.id === selectedObject.id);
@@ -3515,6 +3905,35 @@
         {x:bX-g.nx*half, y:bY-g.ny*half},{x:aX-g.nx*half, y:aY-g.ny*half},
       ].map(p=>`${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
       highlightLayer.appendChild(el("polygon", { points:pts, class:"selection-ring" }));
+    }
+    if(selectedObject.type === "wall"){
+      const w = interiorWalls.find(x => x.id === selectedObject.id);
+      if(!w) return;
+      const p1 = roomMetersToWorldPx(w.x1, w.y1);
+      const p2 = roomMetersToWorldPx(w.x2, w.y2);
+      const pts = wallPolygonPoints(p1, p2, w.t*M + 8/view.k);
+      highlightLayer.appendChild(el("polygon", { points:pts, class:"selection-ring" }));
+    }
+    if(selectedObject.type === "space"){
+      const sp = spaces.find(x => x.id === selectedObject.id);
+      if(!sp) return;
+      const r = 44 / view.k;
+      highlightLayer.appendChild(el("circle", { cx:sp.labelX, cy:sp.labelY-4, r, class:"selection-ring", fill:"none" }));
+    }
+    if(selectedObject.type === "gridline"){
+      const g = archGridLines.find(x => x.id === selectedObject.id);
+      if(!g) return;
+      const bp = gridLineBubblePos(g)[0];
+      const r = 18 / view.k;
+      highlightLayer.appendChild(el("circle", { cx:bp.x, cy:bp.y, r, class:"selection-ring", fill:"none" }));
+    }
+    if(selectedObject.type === "dimension"){
+      const d = dimensions.find(x => x.id === selectedObject.id);
+      if(!d) return;
+      const g = dimGeometryPx(d);
+      const grp = buildDimensionGroup(g.p1, g.p2, d.offset*M, Math.hypot(d.x2-d.x1,d.y2-d.y1), false, null);
+      grp.classList.add("selection-ring-dim");
+      highlightLayer.appendChild(grp);
     }
   }
 
