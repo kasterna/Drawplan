@@ -430,6 +430,55 @@
     .room-schedule{ display:none; }
   }
 
+  /* ---------- Tittelfelt ---------- */
+  .titleblock-backdrop{
+    position:fixed; inset:0; z-index:40;
+    background:rgba(0,0,0,0.45);
+    display:none; align-items:center; justify-content:center;
+  }
+  .titleblock-backdrop.visible{ display:flex; }
+  .titleblock-panel{
+    width:420px; max-width:92vw;
+    background:var(--surface);
+    border:1px solid var(--surface-border);
+    border-radius:14px;
+    box-shadow:0 20px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(0,0,0,0.2);
+    overflow:hidden;
+  }
+  .titleblock-panel-header{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 16px;
+    border-bottom:1px solid var(--surface-border);
+    font-family:var(--mono); font-size:11px; letter-spacing:0.1em;
+    color:var(--text-faint); text-transform:uppercase;
+  }
+  .titleblock-grid{
+    display:grid; grid-template-columns:1fr 1fr; gap:12px 14px;
+    padding:16px;
+  }
+  .titleblock-grid label{
+    display:flex; flex-direction:column; gap:5px;
+    font-family:var(--sans); font-size:11px; color:var(--text-dim);
+  }
+  .titleblock-grid label.tb-wide{ grid-column:1 / -1; }
+  .titleblock-grid input[type="text"]{
+    background:rgba(255,255,255,0.04);
+    border:1px solid var(--surface-border); border-radius:7px;
+    color:var(--text); font-family:var(--mono); font-size:12px;
+    padding:7px 9px;
+  }
+  .titleblock-grid input[type="text"]:focus{ outline:none; border-color:var(--accent); }
+  .titleblock-panel-footer{
+    display:flex; justify-content:flex-end; gap:8px;
+    padding:12px 16px 16px;
+  }
+  .titleblock-panel-footer button{
+    font-family:var(--mono); font-size:11px; letter-spacing:0.05em;
+    padding:8px 16px; border-radius:8px;
+    background:var(--accent); color:#0A0B0D; border:none;
+    cursor:pointer;
+  }
+
   /* ---------- Toolbars ---------- */
   .toolbar{
     position:absolute; left:50%; transform:translateX(-50%);
@@ -657,6 +706,7 @@
     <div class="divider"></div>
     <button class="icon-btn" id="btnSave" title="Save to file" aria-label="Save">⭳</button>
     <button class="icon-btn" id="btnLoad" title="Open file" aria-label="Open">⭱</button>
+    <button class="icon-btn" id="btnTitleBlock" title="Tittelfelt (prosjekt, revisjon, dato ...)" aria-label="Tittelfelt" style="font-size:10px;font-family:var(--mono);font-weight:600;">TB</button>
     <button class="icon-btn" id="btnExport" title="Export as image (PNG)" aria-label="Export as image">▤</button>
     <button class="icon-btn" id="btnExportPDF" title="Export as vector PDF (1:1 scale)" aria-label="Export as vector PDF">⬡</button>
     <button class="icon-btn" id="btnExportSVG" title="Export as SVG (true scale, snappable in Blender/CAD)" aria-label="Export as SVG" style="font-size:10px;font-family:var(--mono);font-weight:600;">SVG</button>
@@ -674,6 +724,30 @@
     <a href="guide.html" target="_blank" class="icon-btn" title="Open guide" aria-label="Open guide" style="text-decoration:none;">?</a>
   </div>
   <input type="file" id="fileInput" accept="application/json" style="display:none">
+
+  <div class="titleblock-backdrop" id="titleBlockBackdrop">
+    <div class="titleblock-panel">
+      <div class="titleblock-panel-header">
+        <span>Tittelfelt</span>
+        <button class="icon-btn" id="btnCloseTitleBlock" title="Lukk" aria-label="Lukk" style="width:22px;height:22px;font-size:13px;">×</button>
+      </div>
+      <div class="titleblock-grid">
+        <label class="tb-wide">Prosjekt<input type="text" id="tbProject" autocomplete="off"></label>
+        <label class="tb-wide">Tegning<input type="text" id="tbTitle" autocomplete="off" placeholder="Plan 1. etasje"></label>
+        <label>Tegningsnr.<input type="text" id="tbDrawingNo" autocomplete="off" placeholder="A-201"></label>
+        <label>Målestokk<input type="text" id="tbScale" autocomplete="off" placeholder="1:100"></label>
+        <label>Dato<input type="text" id="tbDate" autocomplete="off" placeholder="2026-07-22"></label>
+        <label>Revisjon<input type="text" id="tbRevision" autocomplete="off" placeholder="B"></label>
+        <label class="tb-wide">Revisjonstekst<input type="text" id="tbRevisionText" autocomplete="off"></label>
+        <label>Tegnet av<input type="text" id="tbDrawnBy" autocomplete="off"></label>
+        <label>Kontrollert av<input type="text" id="tbCheckedBy" autocomplete="off"></label>
+        <label class="tb-wide">Firma<input type="text" id="tbCompany" autocomplete="off"></label>
+      </div>
+      <div class="titleblock-panel-footer">
+        <button id="btnDoneTitleBlock">Ferdig</button>
+      </div>
+    </div>
+  </div>
 
   <div class="vignette"></div>
 
@@ -1184,6 +1258,89 @@
     if(e.key === "Enter") thicknessInput.blur();
   });
 
+  // ---------- Tittelfelt ----------
+  let titleBlock = {
+    project:"", title:"", drawingNo:"", scale:"", date: new Date().toISOString().slice(0,10),
+    revision:"", revisionText:"", drawnBy:"", checkedBy:"", company:""
+  };
+  const titleBlockBackdrop = document.getElementById("titleBlockBackdrop");
+  const tbFields = {
+    project: document.getElementById("tbProject"),
+    title: document.getElementById("tbTitle"),
+    drawingNo: document.getElementById("tbDrawingNo"),
+    scale: document.getElementById("tbScale"),
+    date: document.getElementById("tbDate"),
+    revision: document.getElementById("tbRevision"),
+    revisionText: document.getElementById("tbRevisionText"),
+    drawnBy: document.getElementById("tbDrawnBy"),
+    checkedBy: document.getElementById("tbCheckedBy"),
+    company: document.getElementById("tbCompany"),
+  };
+  function openTitleBlockPanel(){
+    Object.keys(tbFields).forEach(k => { tbFields[k].value = titleBlock[k] || ""; });
+    titleBlockBackdrop.classList.add("visible");
+  }
+  function closeTitleBlockPanel(){
+    Object.keys(tbFields).forEach(k => { titleBlock[k] = tbFields[k].value; });
+    titleBlockBackdrop.classList.remove("visible");
+  }
+  document.getElementById("btnTitleBlock").addEventListener("click", openTitleBlockPanel);
+  document.getElementById("btnCloseTitleBlock").addEventListener("click", closeTitleBlockPanel);
+  document.getElementById("btnDoneTitleBlock").addEventListener("click", closeTitleBlockPanel);
+  titleBlockBackdrop.addEventListener("pointerdown", (e)=>{ if(e.target === titleBlockBackdrop) closeTitleBlockPanel(); });
+
+  // Rader til selve tittelfelt-boksen — enkeltfelt (full bredde) eller par (to i samme rad).
+  // Tomme par-felt hopper bare over den siden, hele raden skjules kun hvis begge er tomme.
+  function titleBlockLines(){
+    const t = titleBlock;
+    const lines = [];
+    if(t.project) lines.push([{l:"PROSJEKT",v:t.project}]);
+    if(t.title) lines.push([{l:"TEGNING",v:t.title}]);
+    if(t.drawingNo || t.scale) lines.push([{l:"TEGN.NR",v:t.drawingNo},{l:"MLST",v:t.scale}]);
+    if(t.date || t.revision) lines.push([{l:"DATO",v:t.date},{l:"REV",v:t.revision}]);
+    if(t.drawnBy || t.checkedBy) lines.push([{l:"TEGNET",v:t.drawnBy},{l:"KONTR",v:t.checkedBy}]);
+    if(t.revisionText) lines.push([{l:"REV.TEKST",v:t.revisionText}]);
+    if(t.company) lines.push([{l:"FIRMA",v:t.company}]);
+    return lines;
+  }
+
+  // Bygger selve tittelfelt-boksen (ramme + tekstrader) som egne SVG-elementer med
+  // eksplisitte stil-attributter (ikke CSS-klasser — brukes i en frittstående klone av
+  // scenen ved PNG/PDF-eksport, der de vanlige CSS-variablene ikke er tilgjengelige).
+  // Returnerer null hvis alle felt er tomme (ingenting å tegne). Plasseres nederst til
+  // høyre, rett under selve tegningen, og gir tilbake nye (utvidede) bounds som inkluderer boksen.
+  function buildTitleBlockGroup(bounds, textColor, lineColor){
+    const lines = titleBlockLines();
+    if(!lines.length) return null;
+    const rowH = 0.13*M, pad = 0.06*M, colGap = 0.05*M, boxW = 2.3*M;
+    const boxH = pad*2 + lines.length*rowH;
+    const x0 = bounds.maxX - boxW;
+    const y0 = bounds.maxY + 0.15*M;
+
+    const grp = el("g", {});
+    grp.appendChild(el("rect", { x:x0, y:y0, width:boxW, height:boxH, fill:"none", stroke:lineColor, "stroke-width":1.2 }));
+    lines.forEach((row, i) => {
+      const ty = y0 + pad + i*rowH + rowH*0.7;
+      if(row.length === 1){
+        const txt = el("text", { x:x0+pad, y:ty, "font-family":"monospace", "font-size":(rowH*0.55).toFixed(1), fill:textColor });
+        txt.textContent = `${row[0].l}: ${row[0].v}`;
+        grp.appendChild(txt);
+      } else {
+        const halfW = (boxW - pad*2 - colGap)/2;
+        row.forEach((cell, ci) => {
+          const txt = el("text", { x:x0+pad+ci*(halfW+colGap), y:ty, "font-family":"monospace", "font-size":(rowH*0.55).toFixed(1), fill:textColor });
+          txt.textContent = `${cell.l}: ${cell.v}`;
+          grp.appendChild(txt);
+        });
+      }
+    });
+    const expandedBounds = {
+      minX: Math.min(bounds.minX, x0), minY: bounds.minY,
+      maxX: bounds.maxX, maxY: y0 + boxH,
+    };
+    return { el:grp, bounds:expandedBounds };
+  }
+
   // ---------- Alle vegger (ytter + inner) — ett enhetlig, redigerbart system ----------
   let interiorWalls = [
     { id:"WALL_N", x1:0,     y1:0,     x2:roomW, y2:0,     t:t },
@@ -1323,8 +1480,17 @@
       const m = worldPxToRoomMeters(px, py);
       const dWall = interiorWalls.find(x => x.id === dep.id);
       if(!dWall) return;
-      if(dep.end === "1"){ dWall.x1 = snap5(m.x); dWall.y1 = snap5(m.y); }
-      else { dWall.x2 = snap5(m.x); dWall.y2 = snap5(m.y); }
+      let nx = snap5(m.x), ny = snap5(m.y);
+      // Hvis den tilkoblede veggen allerede var eksakt vannrett/loddrett (dep.dir peker rett
+      // langs en akse), behold det eksakt ved å gjenbruke den faste endens egen koordinat i
+      // stedet for å avrunde X/Y uavhengig av hverandre — ellers kan den andre enden få en
+      // umerkelig skjevhet selv om denne enden traff ankerveggen helt riktig.
+      const fixedX = dep.end === "1" ? dWall.x2 : dWall.x1;
+      const fixedY = dep.end === "1" ? dWall.y2 : dWall.y1;
+      if(dep.dir.y === 0) ny = fixedY;
+      else if(dep.dir.x === 0) nx = fixedX;
+      if(dep.end === "1"){ dWall.x1 = nx; dWall.y1 = ny; }
+      else { dWall.x2 = nx; dWall.y2 = ny; }
       updateWallGeometryDom(dep.id);
     });
   }
@@ -2584,7 +2750,7 @@
   async function exportState(){
     const data = {
       version: 1,
-      interiorWalls, openings, spaces, dimensions, archGridLines,
+      interiorWalls, openings, spaces, dimensions, archGridLines, titleBlock,
       idCounter, openingIdCounter, spaceIdCounter, dimIdCounter, archGridIdCounter
     };
     const json = JSON.stringify(data, null, 2);
@@ -2605,6 +2771,7 @@
       spaces = Array.isArray(data.spaces) ? data.spaces : [];
       dimensions = Array.isArray(data.dimensions) ? data.dimensions : [];
       archGridLines = Array.isArray(data.archGridLines) ? data.archGridLines : [];
+      if(data.titleBlock && typeof data.titleBlock === "object") titleBlock = Object.assign({}, titleBlock, data.titleBlock);
       idCounter = data.idCounter || (interiorWalls.length + 1);
       openingIdCounter = data.openingIdCounter || (openings.length + 1);
       spaceIdCounter = data.spaceIdCounter || (spaces.length + 1);
@@ -2643,7 +2810,11 @@
   }
 
   function exportPNG(){
-    const bounds = computeContentBoundsPx();
+    const baseBounds = computeContentBoundsPx();
+    const themeText = getComputedStyle(document.body).getPropertyValue("--text").trim();
+    const themeLine = getComputedStyle(document.body).getPropertyValue("--line-strong").trim() || themeText;
+    const tb = buildTitleBlockGroup(baseBounds, themeText, themeLine);
+    const bounds = tb ? tb.bounds : baseBounds;
     const widthPx = bounds.maxX - bounds.minX;
     const heightPx = bounds.maxY - bounds.minY;
 
@@ -2671,6 +2842,10 @@
         if(v && v !== "none" && v !== "") ce.setAttribute(p, v);
       });
     });
+
+    // Tittelfeltet legges til ETTER baking-løkken over (den forutsetter at live/klone-elementer
+    // matcher 1:1 på indeks — et ekstra element satt inn før den ville forskjøvet paringen).
+    if(tb && cloneWorld) cloneWorld.appendChild(tb.el);
 
     // Bakgrunnsfarge løses opp og skrives inn som et solid rektangel i topp av klonen.
     const bgColor = getComputedStyle(document.body).getPropertyValue("--bg").trim();
@@ -2728,7 +2903,11 @@
       showSpaceHint(vb.w/2, vb.h/2, "PDF LIBRARY NOT LOADED (REQUIRES INTERNET)");
       return;
     }
-    const bounds = computeContentBoundsPx();
+    const baseBounds = computeContentBoundsPx();
+    const themeText = getComputedStyle(document.body).getPropertyValue("--text").trim();
+    const themeLine = getComputedStyle(document.body).getPropertyValue("--line-strong").trim() || themeText;
+    const tb = buildTitleBlockGroup(baseBounds, themeText, themeLine);
+    const bounds = tb ? tb.bounds : baseBounds;
     const widthPx = bounds.maxX - bounds.minX;
     const heightPx = bounds.maxY - bounds.minY;
     const mmPerPx = 1000/M; // 1:1 skala — 1 verdens-px tilsvarer (1000/M) virkelige mm
@@ -2754,6 +2933,9 @@
     }
     const rootCs = getComputedStyle(stage);
     props.forEach(p => { const v = rootCs.getPropertyValue(p); if(v) clone.style.setProperty(p, v); });
+
+    // Tittelfeltet legges til ETTER baking-løkken over, av samme grunn som i PNG-eksporten.
+    if(tb && cloneWorld) cloneWorld.appendChild(tb.el);
 
     const pageStyle = document.querySelector("style").textContent;
     const styleEl = document.createElementNS(svgns, "style");
@@ -3019,13 +3201,14 @@ ${gridSvg}</g>
     g(0,"TABLE"); g(2,"LTYPE"); g(70,1);
     g(0,"LTYPE"); g(2,"CONTINUOUS"); g(70,0); g(3,"Solid line"); g(72,65); g(73,0); g(40,"0.0");
     g(0,"ENDTAB");
-    g(0,"TABLE"); g(2,"LAYER"); g(70,5);
+    g(0,"TABLE"); g(2,"LAYER"); g(70,6);
     const layerDef = (name, color) => { g(0,"LAYER"); g(2,name); g(70,0); g(62,color); g(6,"CONTINUOUS"); };
     layerDef("VEGGER", 7);
     layerDef("APNINGER", 1);
     layerDef("ROM", 3);
     layerDef("MAL", 5);
     layerDef("RUTENETT", 4);
+    layerDef("TITTELFELT", 2);
     g(0,"ENDTAB"); g(0,"ENDSEC");
 
     g(0,"SECTION"); g(2,"BLOCKS"); g(0,"ENDSEC");
@@ -3135,6 +3318,29 @@ ${gridSvg}</g>
       });
     });
 
+    // ---- Tittelfelt: ramme + tekstrader, samme rader som PNG/PDF, men i meter (ikke world-px) ----
+    const tbLines = titleBlockLines();
+    if(tbLines.length){
+      const rowH=0.13, pad=0.06, colGap=0.05, boxW=2.3;
+      const boxH = pad*2 + tbLines.length*rowH;
+      const x0 = b.maxX - boxW, y0 = b.maxY + 0.15;
+      dxfLine("TITTELFELT", x0,y0, x0+boxW,y0);
+      dxfLine("TITTELFELT", x0+boxW,y0, x0+boxW,y0+boxH);
+      dxfLine("TITTELFELT", x0+boxW,y0+boxH, x0,y0+boxH);
+      dxfLine("TITTELFELT", x0,y0+boxH, x0,y0);
+      tbLines.forEach((row, i) => {
+        const ty = y0 + pad + i*rowH + rowH*0.75;
+        if(row.length === 1){
+          dxfText("TITTELFELT", x0+pad, ty, rowH*0.5, `${row[0].l}: ${row[0].v}`);
+        } else {
+          const halfW = (boxW - pad*2 - colGap)/2;
+          row.forEach((cell, ci) => {
+            dxfText("TITTELFELT", x0+pad+ci*(halfW+colGap), ty, rowH*0.5, `${cell.l}: ${cell.v}`);
+          });
+        }
+      });
+    }
+
     g(0,"ENDSEC");
     g(0,"EOF");
 
@@ -3169,7 +3375,11 @@ ${gridSvg}</g>
   // Magnetisk snap til nærmeste eksisterende veggendepunkt (hjørne), innenfor toleranse.
   function findNearbyVertex(px, py, tolerancePx, excludeWallId){
     if(!snapEnabled) return null;
-    let best = null, bestDist = tolerancePx;
+    // tolerancePx er ment som SKJERM-piksler (fangstradius under musepekeren), men px/py og
+    // veggenes koordinater her er i world-px (upåvirket av zoom). Uten denne omregningen ble
+    // fangstradiusen i praksis fast i world-mm — ved lav zoom (f.eks. et stort utzoomet rom)
+    // kunne det tilsvare under en skjermpiksel, og snapping ble upålitelig.
+    let best = null, bestDist = tolerancePx / view.k;
     interiorWalls.forEach(w => {
       if(w.id === excludeWallId) return;
       const p1 = roomMetersToWorldPx(w.x1, w.y1);
@@ -3199,7 +3409,8 @@ ${gridSvg}</g>
   // Snap til nærmeste punkt langs en veggs ytterkant, senterlinje eller innerkant, utenom selve hjørnene.
   function findEdgeSnap(px, py, tolerancePx, excludeWallId){
     if(!snapEnabled) return null;
-    let best = null, bestDist = tolerancePx;
+    // Samme zoom-korreksjon som i findNearbyVertex — se kommentar der.
+    let best = null, bestDist = tolerancePx / view.k;
     interiorWalls.forEach(w => {
       if(w.id === excludeWallId) return;
       const p1 = roomMetersToWorldPx(w.x1, w.y1);
@@ -3362,23 +3573,33 @@ ${gridSvg}</g>
     const m = worldPxToRoomMeters(w.x, w.y);
     let dx = m.x - drawState.startM.x;
     let dy = m.y - drawState.startM.y;
+    let lockedAxis = null; // 'y' = Y låst til startM.y (vannrett linje), 'x' = X låst (loddrett linje)
     if(!freeAngle){
-      if(Math.abs(dx) >= Math.abs(dy)) dy = 0; else dx = 0;
+      if(Math.abs(dx) >= Math.abs(dy)){ dy = 0; lockedAxis = "y"; }
+      else { dx = 0; lockedAxis = "x"; }
     }
     let ex = drawState.startM.x + dx;
     let ey = drawState.startM.y + dy;
     ex = snap5(ex); ey = snap5(ey);
 
+    // Vertex/edge-snap skal aldri bryte en aktiv 90°-lås: hvis linja er låst, henter vi kun
+    // den FRIE koordinaten fra hjørnet/kanten, og beholder den låste aksen slik den ble regnet
+    // ut over — ellers kunne et hjørne som ligger nesten (men ikke helt) på linje gi en umerkelig
+    // skjev vegg uten varsel.
     const candidatePx = roomMetersToWorldPx(ex, ey);
     const vertex = findNearbyVertex(candidatePx.x, candidatePx.y, VERTEX_SNAP_PX);
     if(vertex){
       const vm = worldPxToRoomMeters(vertex.x, vertex.y);
-      ex = vm.x; ey = vm.y;
+      if(lockedAxis === "y") ex = vm.x;
+      else if(lockedAxis === "x") ey = vm.y;
+      else { ex = vm.x; ey = vm.y; }
     } else {
       const edge = findEdgeSnap(candidatePx.x, candidatePx.y, EDGE_SNAP_PX);
       if(edge){
         const emv = worldPxToRoomMeters(edge.x, edge.y);
-        ex = emv.x; ey = emv.y;
+        if(lockedAxis === "y") ex = emv.x;
+        else if(lockedAxis === "x") ey = emv.y;
+        else { ex = emv.x; ey = emv.y; }
       }
     }
     return { x: ex, y: ey };
