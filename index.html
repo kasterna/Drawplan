@@ -532,8 +532,8 @@
     .toolbar.tools{ bottom:74px; }
   }
 </style>
-<script src="https://cdn.jsdelivr.net/npm/jspdf@3/dist/jspdf.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2/dist/svg2pdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@3.0.4/dist/jspdf.umd.min.js" integrity="sha384-5D+9rOA7QhIVVlbglgjfeZ3vcuDz3a+TTrJbV3qiZqHpkTOTowdlTqQXF8E8pw/j" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/svg2pdf.js@2.7.0/dist/svg2pdf.umd.min.js" integrity="sha384-UMdplNeJF/mRqnsNO/vfK5po5eKyTMGCymHkdARQ9NFscA4DX3buGxfhUJcPLbWj" crossorigin="anonymous"></script>
 </head>
 <body data-mode="drafting" data-theme="dark">
 <div class="app">
@@ -3801,16 +3801,29 @@ ${gridSvg}</g>
 
   const wallInfoOverlay = document.getElementById("wallInfoOverlay");
 
+  // Bygger en info-rad som ekte DOM-noder (textContent) — ALDRI innerHTML her, siden
+  // enkelte verdier (f.eks. romnavn) er fri tekst brukeren selv har skrevet inn.
   function infoRow(label, value){
-    return `<div class="wall-info-row"><span class="wall-info-label">${label}</span><span class="wall-info-value">${value}</span></div>`;
+    const row = document.createElement("div");
+    row.className = "wall-info-row";
+    const l = document.createElement("span");
+    l.className = "wall-info-label";
+    l.textContent = label;
+    const v = document.createElement("span");
+    v.className = "wall-info-value";
+    v.textContent = value;
+    row.appendChild(l);
+    row.appendChild(v);
+    return row;
   }
 
-  function showInfoOverlayAt(worldX, worldY, rowsHtml){
+  function showInfoOverlayAt(worldX, worldY, rows){
     const client = worldToClient(worldX, worldY - 20);
     wallInfoOverlay.style.left = client.x + "px";
     wallInfoOverlay.style.top = client.y + "px";
     wallInfoOverlay.style.display = "flex";
-    wallInfoOverlay.innerHTML = rowsHtml;
+    while(wallInfoOverlay.firstChild) wallInfoOverlay.removeChild(wallInfoOverlay.firstChild);
+    rows.forEach(r => wallInfoOverlay.appendChild(r));
   }
 
   // Viser en flytende infoboks for det som er valgt i select-modus (vegg, åpning, rom, gridlinje).
@@ -3822,12 +3835,13 @@ ${gridSvg}</g>
       if(!w){ wallInfoOverlay.style.display = "none"; return; }
       const lenM = Math.hypot(w.x2-w.x1, w.y2-w.y1);
       const mid = roomMetersToWorldPx((w.x1+w.x2)/2, (w.y1+w.y2)/2);
-      showInfoOverlayAt(mid.x, mid.y,
-        infoRow("ID", w.id) +
-        infoRow("Lengde", formatLength(lenM)) +
-        infoRow("Tykkelse", formatLength(w.t)) +
-        infoRow("Start", `${w.x1.toFixed(2)}, ${w.y1.toFixed(2)} m`) +
-        infoRow("Slutt", `${w.x2.toFixed(2)}, ${w.y2.toFixed(2)} m`));
+      showInfoOverlayAt(mid.x, mid.y, [
+        infoRow("ID", w.id),
+        infoRow("Lengde", formatLength(lenM)),
+        infoRow("Tykkelse", formatLength(w.t)),
+        infoRow("Start", `${w.x1.toFixed(2)}, ${w.y1.toFixed(2)} m`),
+        infoRow("Slutt", `${w.x2.toFixed(2)}, ${w.y2.toFixed(2)} m`),
+      ]);
       return;
     }
 
@@ -3839,23 +3853,25 @@ ${gridSvg}</g>
       const g = wallGeometryPx(w);
       const sPx = op.s*M;
       const midX = g.p1.x + g.ux*sPx, midY = g.p1.y + g.uy*sPx;
-      showInfoOverlayAt(midX, midY,
-        infoRow("ID", op.id) +
-        infoRow("Type", op.type === "door" ? "Dør" : "Vindu") +
-        infoRow("Bredde", formatLength(op.width)) +
-        infoRow("Vegg", op.wallId) +
-        infoRow("Posisjon", formatLength(op.s) + " fra start"));
+      showInfoOverlayAt(midX, midY, [
+        infoRow("ID", op.id),
+        infoRow("Type", op.type === "door" ? "Dør" : "Vindu"),
+        infoRow("Bredde", formatLength(op.width)),
+        infoRow("Vegg", op.wallId),
+        infoRow("Posisjon", formatLength(op.s) + " fra start"),
+      ]);
       return;
     }
 
     if(selectedObject.type === "space"){
       const sp = spaces.find(x => x.id === selectedObject.id);
       if(!sp){ wallInfoOverlay.style.display = "none"; return; }
-      showInfoOverlayAt(sp.labelX, sp.labelY,
-        infoRow("ID", sp.id) +
-        infoRow("Navn", sp.name || "–") +
-        infoRow("Areal", fmtArea(sp.areaM2)) +
-        infoRow("Gulvtype", sp.floorType || "–"));
+      showInfoOverlayAt(sp.labelX, sp.labelY, [
+        infoRow("ID", sp.id),
+        infoRow("Navn", sp.name || "–"),
+        infoRow("Areal", fmtArea(sp.areaM2)),
+        infoRow("Gulvtype", sp.floorType || "–"),
+      ]);
       return;
     }
 
@@ -3863,11 +3879,12 @@ ${gridSvg}</g>
       const g = archGridLines.find(x => x.id === selectedObject.id);
       if(!g){ wallInfoOverlay.style.display = "none"; return; }
       const bp = gridLineBubblePos(g)[0];
-      showInfoOverlayAt(bp.x, bp.y,
-        infoRow("ID", g.id) +
-        infoRow("Etikett", g.label) +
-        infoRow("Akse", g.axis === "y" ? "Vertikal (tall)" : "Horisontal (bokstav)") +
-        infoRow("Posisjon", formatLength(g.pos)));
+      showInfoOverlayAt(bp.x, bp.y, [
+        infoRow("ID", g.id),
+        infoRow("Etikett", g.label),
+        infoRow("Akse", g.axis === "y" ? "Vertikal (tall)" : "Horisontal (bokstav)"),
+        infoRow("Posisjon", formatLength(g.pos)),
+      ]);
       return;
     }
 
@@ -3876,11 +3893,12 @@ ${gridSvg}</g>
       if(!d){ wallInfoOverlay.style.display = "none"; return; }
       const lenM = Math.hypot(d.x2-d.x1, d.y2-d.y1);
       const mid = roomMetersToWorldPx((d.x1+d.x2)/2, (d.y1+d.y2)/2);
-      showInfoOverlayAt(mid.x, mid.y,
-        infoRow("ID", d.id) +
-        infoRow("Lengde", formatLength(lenM)) +
-        infoRow("Start", `${d.x1.toFixed(2)}, ${d.y1.toFixed(2)} m`) +
-        infoRow("Slutt", `${d.x2.toFixed(2)}, ${d.y2.toFixed(2)} m`));
+      showInfoOverlayAt(mid.x, mid.y, [
+        infoRow("ID", d.id),
+        infoRow("Lengde", formatLength(lenM)),
+        infoRow("Start", `${d.x1.toFixed(2)}, ${d.y1.toFixed(2)} m`),
+        infoRow("Slutt", `${d.x2.toFixed(2)}, ${d.y2.toFixed(2)} m`),
+      ]);
       return;
     }
 
